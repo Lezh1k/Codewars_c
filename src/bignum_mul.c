@@ -6,10 +6,48 @@
 #include <stdbool.h>
 #include <math.h>
 
+typedef struct complex {
+  double r;
+  double i;
+} complex_t;
+
+static complex_t complex_sum(complex_t a, complex_t b) {
+  a.r += b.r;
+  a.i += b.i;
+  return a;
+}
+///////////////////////////////////////////////////////
+
+static complex_t complex_sub(complex_t a, complex_t b) {
+  a.r -= b.r;
+  a.i -= b.i;
+  return a;
+}
+///////////////////////////////////////////////////////
+
+//a = a.r + a.i; b = b.r + b.i; ab = (a.r*b.r - a.i*b.i) + (a.r*b.i + b.r*a.i)
+static complex_t complex_mul(complex_t a, complex_t b) {
+  complex_t res;
+  res.r = a.r*b.r - a.i*b.i;
+  res.i = a.r*b.i + b.r*a.i;
+  return res;
+}
+///////////////////////////////////////////////////////
+
+//a = a.r + a.i; b = b.r + b.i;
+//a/b = (ar*br + ai*bi)/(br*br + bi*bi) + (ai*br - ar*bi)/(br*br + bi*bi)i
+static complex_t complex_div(complex_t a, complex_t b) {
+  complex_t res;
+  double denom = b.r*b.r + b.i*b.i;  
+  res.r = (a.r*b.r + a.i*b.i) / denom;
+  res.i = (a.i*b.r - a.r*b.i) / denom;
+  return res;
+}
+///////////////////////////////////////////////////////
+
 typedef struct iVec {
   int32_t len;
-  double *r; //LSB!!!
-  double *i;
+  complex_t *data;
 } iVec_t;
 
 static uint32_t nearest2pow(uint32_t v);
@@ -18,8 +56,57 @@ static uint32_t logOfPower2(uint32_t v);
 static void vecPrint(const iVec_t *vec);
 static iVec_t vecFromStr(const char *str);
 static void vecComplement(iVec_t *a, iVec_t *b);
-static void vecNormalize(iVec_t *vec);
-static bool fft(double *Rdat, double *Idat, int N, int LogN, bool inv);
+static void vecNormalizeRealPart(iVec_t *vec);
+
+typedef struct fft_plan {
+  int N, LogN;
+  int *rev;
+} fft_plan_t;
+
+/*void FFTPlan::calc_rev (int n, int log_n) {
+  for (int i=0; i<n; ++i) {
+    m_rev[i] = 0;
+    for (int j=0; j<log_n; ++j) {
+      if (i & (1<<j))
+        m_rev[i] |= 1<<(log_n-1-j);
+    }
+  }
+}*/
+
+static fft_plan_t* fft_plan(int n, int logn) {
+  int i, j, k;
+  fft_plan_t *p = malloc(sizeof(fft_plan_t));
+  if (!p) { printf("Couldn't allocate memory for fft plan\n"); exit(1);}
+  p->N = n;
+  p->LogN = logn;
+  p->rev = malloc(n * sizeof(int));
+  if (!p->rev) { printf("Couldn't allocate memory for reverse bits permutations\n"); exit(1);}
+
+  //calculate bit permutations
+  for(j=i=1; i<n; ++i) {
+    if(i < j) {
+      p->rev[i-1] = j-1;
+    }
+
+    k = n >> 1;
+    while(k < j) {
+      j = j - k;
+      k >>= 1;
+    }
+    j = j + k;
+  }
+
+  return p;
+}
+
+static void fft_plan_free(fft_plan_t *p) {
+  if (p) {
+    if (p->rev) free(p->rev);
+    free(p);
+  }
+}
+///////////////////////////////////////////////////////
+static bool fft(complex_t *dat, fft_plan_t *plan, bool inv);
 
 #define MAX_LOG2_N 32
 
@@ -54,57 +141,45 @@ static double ICoef[MAX_LOG2_N] = {
 
 #define  NUMBER_IS_2_POW_K(x)   ((!((x)&((x)-1)))&&((x)>1))  // x is pow(2, k), k=1,2, ...
 
-bool fft(double *Rdat, double *Idat, int N, int LogN, bool inv) {
+
+
+bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
   // parameters error check:
-  assert(Rdat);
-  assert(Idat);
-  assert(NUMBER_IS_2_POW_K(N));
-  assert(LogN >= 2 && LogN <= MAX_LOG2_N);
+  assert(dat);
+  assert(NUMBER_IS_2_POW_K(plan->N));
+  assert(plan->LogN >= 2 && plan->LogN <= MAX_LOG2_N);
 
-  register int  i, j, n, k, io, ie, in, nn;
-  double        ru, iu, rtp, itp, rtq, itq, rw, iw, sr;
+  register int32_t i, j, n, k, io, ie, in, nn;
+  complex_t tp, tq, u, w;
 
-  nn = N >> 1;
-  ie = N; //N для каждого из уровней. для первого N. Для второго N/2 и т.д.
-  for(n=1; n<=LogN; n++) {
+  ie = plan->N; //N для каждого из уровней. для первого N. Для второго N/2 и т.д.
+  for(n=1; n<=plan->LogN; ++n) {
     //rw и iw - поворотный коэффициент для LogN.
     //w = -2.0 * M_PI / pow(2.0, n)
-    rw = RCoef[LogN - n]; //cos(w)
-    iw = ICoef[LogN - n]; //sin(w)
+    w.r = RCoef[plan->LogN - n]; //cos(w)
+    w.i = ICoef[plan->LogN - n]; //sin(w)
 
     if(inv)
-      iw = -iw; //комплексно сопряженное.
-
+      w.i = -w.i; //комплексно сопряженное.
     in = ie >> 1; //in - середина... N/2 для каждого уровня.
+    //u - используемый поворотный коэффициент
+    u.r = 1.0;
+    u.i = 0.0;
 
-    //ru и iu - используемый поворотный коэффициент
-    ru = 1.0;
-    iu = 0.0;
-
-    for(j=0; j<in; j++) {
-      for(i=j; i<N; i+=ie) {
-        io       = i + in; //io = i + N/2 для каждого из уровней...
+    for(j=0; j<in; ++j) {
+      for(i=j; i<plan->N; i+=ie) {
+        io = i + in; //io = i + N/2 для каждого из уровней...
 
         //s(2k) = s0(k) + s1(k)
-        rtp      = Rdat[i]  + Rdat[io];
-        itp      = Idat[i]  + Idat[io];
-
+        tp = complex_sum(dat[i], dat[io]);
         //s0(k) - s1(k)
-        rtq      = Rdat[i]  - Rdat[io];
-        itq      = Idat[i]  - Idat[io];
-
+        tq = complex_sub(dat[i], dat[io]);
         //s(2k+1) = Wkn * (s0(k) - s1(k))
-        Rdat[io] = rtq * ru - itq * iu;
-        Idat[io] = itq * ru + rtq * iu;
-
-        Rdat[i]  = rtp;
-        Idat[i]  = itp;
+        dat[io] = complex_mul(tq, u);
+        dat[i] = tp;
       }
-
-      sr = ru;
       //Wk+1 = W*Wk
-      ru = ru * rw - iu * iw;
-      iu = iu * rw + sr * iw;
+      u = complex_mul(u, w);
     }
 
     ie >>= 1;
@@ -113,24 +188,21 @@ bool fft(double *Rdat, double *Idat, int N, int LogN, bool inv) {
 
   //nn = N/2
   //bit-reversal permutation :)
-  for(j=i=1; i<N; i++) {
-
+  nn = plan->N >> 1;
+  for(j=i=1; i<plan->N; ++i) {
     if(i < j) {
       //swap dat[io] and dat[in].
-      io       = i - 1;
-      in       = j - 1;
-      rtp      = Rdat[in];
-      itp      = Idat[in];
-      Rdat[in] = Rdat[io];
-      Idat[in] = Idat[io];
-      Rdat[io] = rtp;
-      Idat[io] = itp;
+      io = i - 1;
+      in = j - 1;
+      tp = dat[in];
+      dat[in] = dat[io];
+      dat[io] = tp;
+      printf("swap %d and %d\n", io, in);
     }
 
     k = nn;
-
     while(k < j) {
-      j   = j - k;
+      j = j - k;
       k >>= 1;
     }
 
@@ -141,10 +213,11 @@ bool fft(double *Rdat, double *Idat, int N, int LogN, bool inv) {
   if(!inv)
     return true;
 
-  rw = 1.0 / N;
-  for(i=0; i<N; i++) {
-    Rdat[i] *= rw;
-    Idat[i] *= rw;
+  w.r = 1.0 / plan->N;
+  for(i=0; i<plan->N;
+      ++i) {
+    dat[i].r *= w.r;
+    dat[i].i *= w.r;
   }
   return true;
 }
@@ -163,6 +236,7 @@ one vector by the corresponding element of another vector, then we obtain nothin
 Finally, applying the inverse DFT, we obtain:
 
  A * B = InverseDFT (DFT (A) * DFT (B))
+ A / B = InverseDFT (DFT (A) / DFT (B))
 
 where, we repeat, on the right, under the product of two DFTs, we mean pairwise products of vector elements.
 Such a product obviously requires only O (n) operations to be computed.
@@ -202,7 +276,7 @@ uint32_t logOfPower2(uint32_t v) {
 void vecPrint(const iVec_t *vec) {
   int i;
   for (i = 0; i < vec->len; ++i)
-    printf("%.4f ", vec->r[i]);
+    printf("(%.2f %.2f) ", vec->data[i].r, vec->data[i].i);
   printf("\n");
 }
 //////////////////////////////////////////////////////////////////////////
@@ -211,111 +285,100 @@ iVec_t vecFromStr(const char *str) {
   iVec_t res;
   int i, sl;
   sl = strlen(str);
-  res.len = nearest2pow(sl+1) << 1;
-  res.r = malloc(res.len * sizeof(double));
-  res.i = malloc(res.len * sizeof(double));
+  res.len = nearest2pow(sl+1)*2;
+  res.data = malloc(res.len * sizeof(complex_t));
+  memset(res.data, 0, res.len * sizeof(complex_t));
 
-  for (i = 0; i < res.len - sl; ++i) {
-    res.r[i] = 0.0;
-    res.i[i] = 0.0;
-  }
-
-  for (; *str; ++str, ++i) {
-    res.r[i] = *str-'0';
-    res.i[i] = 0.0;
-  }
-
+  for (i = res.len - sl; *str; ++str, ++i)
+    res.data[i].r = *str-'0';
   return res;
 }
 //////////////////////////////////////////////////////////////////////////
 
 void vecComplement(iVec_t *a, iVec_t *b) {
   iVec_t *vtn[2] = {a, b};
-  double *rdat, *idat;
-  int ge, le;
+  complex_t *cdat;
+  int big, little;
 
   if (a->len == b->len)
     return;
 
-  ge = a->len < b->len;
-  le = 1 - ge;
+  big = a->len < b->len ? 1 : 0;
+  little = 1 - big;
 
-  rdat = malloc(vtn[ge]->len * sizeof(double));
-  idat = malloc(vtn[ge]->len * sizeof(double));
+  cdat = malloc(vtn[big]->len * sizeof(complex_t));
 
-  memcpy(rdat + vtn[ge]->len - vtn[le]->len, vtn[le]->r, vtn[le]->len * sizeof(double));
-  memcpy(idat + vtn[ge]->len - vtn[le]->len, vtn[le]->i, vtn[le]->len * sizeof(double));
+  memcpy(cdat + vtn[big]->len - vtn[little]->len, vtn[little]->data, vtn[little]->len * sizeof(complex_t));
+  memset(cdat, 0, (vtn[big]->len - vtn[little]->len)*sizeof(complex_t));
 
-  memset(rdat, 0, (vtn[ge]->len - vtn[le]->len)*sizeof(double));
-  memset(idat, 0, (vtn[ge]->len - vtn[le]->len)*sizeof(double));
+  free(vtn[little]->data);
 
-  free(vtn[le]->r);
-  free(vtn[le]->i);
-
-  vtn[le]->r = rdat;
-  vtn[le]->i = idat;
-  vtn[le]->len = vtn[ge]->len;
+  vtn[little]->data = cdat;
+  vtn[little]->len = vtn[big]->len;
 }
 //////////////////////////////////////////////////////////////////////////
 
-void vecNormalize(iVec_t *vec) {
+void vecNormalizeRealPart(iVec_t *vec) {
   int32_t carry = 0;
-  int32_t i;
+  int32_t l;
 
-  for (i = 0; i < vec->len; ++i) {
-    vec->r[i] = (int32_t)(vec->r[i]+0.1); //HACK!!!!!!!
-  }
-
-  //I have no idea why result is shifted to left by 1
-  for (i = vec->len-2; i >= 0; --i) {
-    vec->r[i] += carry;
-    carry = vec->r[i] / 10;
-    vec->r[i] = (int32_t)vec->r[i] % 10;
+  for (l = vec->len-1; l >= 0; --l) {
+    vec->data[l].r += carry;
+    carry = vec->data[l].r / 10;
+    vec->data[l].r = ((int32_t)round(vec->data[l].r)) % 10;
   }
 }
+///////////////////////////////////////////////////////
 
 char *multiply(char *aStr, char *bStr) {
   iVec_t a, b;
   int i;
   char *res, *tmp;
+  fft_plan_t *fftp;
+
 
   a = vecFromStr(aStr);
   b = vecFromStr(bStr);
   vecComplement(&a, &b);
 
-  fft(a.r, a.i, a.len, logOfPower2(a.len), false);
-  fft(b.r, b.i, b.len, logOfPower2(b.len), false);
+  printf("from str: ");
+  vecPrint(&a);
 
+  fftp = fft_plan(a.len, logOfPower2(a.len));
+
+  fft(a.data, fftp, false);
+  fft(b.data, fftp, false);
+
+  printf("fft direct: ");
+  vecPrint(&a);
   for (i = 0; i < a.len; ++i) {
-    //a = a.r + a.i; b = b.r + b.i; ab = (a.r*b.r - a.i*b.i) + (a.r*b.i + b.r*a.i)
-    double tmpr = a.r[i]*b.r[i] - a.i[i]*b.i[i];
-    double tmpi = a.r[i]*b.i[i] + b.r[i]*a.i[i];
-    a.r[i] = tmpr;
-    a.i[i] = tmpi;
+    a.data[i] = complex_mul(a.data[i], b.data[i]);
   }
 
-  fft(a.r, a.i, a.len, logOfPower2(a.len), true);
+  printf("operation: ");
+  vecPrint(&a);
+  fft(a.data, fftp, true);
 
-  vecNormalize(&a);
+  printf("fft inverse: ");
+  vecPrint(&a);
+  vecNormalizeRealPart(&a);
+
+  printf("normlized: ");
   vecPrint(&a);
 
   res = malloc(a.len);
   tmp = res;
-  for (i = 0; i < a.len-1; ++i) {
-    if (a.r[i] == 0.0)
+  for (i = 0; i < a.len; ++i) {
+    if (a.data[i].r == 0.0)
       continue;
     break;
   }
 
-  if (i == a.len-1)
+  if (i == a.len)
     *tmp++ = '0';
-
-  for (; i < a.len-1; ++i, ++tmp) {
-    *tmp = (int32_t)a.r[i] + '0';
-  }
-
+  for (; i < a.len-1; ++i)
+    *tmp++ = (int32_t)a.data[i].r + '0';
   *tmp = 0;
-
   return res;
 }
 //////////////////////////////////////////////////////////////////////////

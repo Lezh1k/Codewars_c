@@ -150,6 +150,7 @@ int64_t product_max(int64_t n) {
       return powi(3, (n-2)/3) * 2;
   }
   assert(false);
+  return 0;
 }
 ///////////////////////////////////////////////////////
 
