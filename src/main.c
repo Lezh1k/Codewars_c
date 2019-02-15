@@ -3,13 +3,15 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#include "bignum_mul.h"
+#include <limits.h>
+#include <emmintrin.h>
+#include "karatsuba.h"
 
 int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  char *mul = multiply("12", "3334");
-  printf("%s\n", mul);
-  free(mul);
+//  pol_t x = pol_new_from_str("23398");
+//  pol_t y = pol_new_from_str("11");
+  return 0;
 }
+///////////////////////////////////////////////////////

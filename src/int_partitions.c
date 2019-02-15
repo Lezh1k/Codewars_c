@@ -102,6 +102,7 @@ static double slst_median(slist_t *lst) {
 }
 ///////////////////////////////////////////////////////
 
+#if 0
 static void slst_print(slist_t *lst) {
   node_t *tmp = lst->root->next;
   printf("searched list:\n");
@@ -112,6 +113,7 @@ static void slst_print(slist_t *lst) {
   printf("\n");
 }
 ///////////////////////////////////////////////////////
+#endif
 
 static void decompositions(int n, int k, int i, slist_t *lst);
 static int64_t product_max(int64_t n);

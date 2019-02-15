@@ -46,8 +46,9 @@ static complex_t complex_div(complex_t a, complex_t b) {
 ///////////////////////////////////////////////////////
 
 typedef struct iVec {
-  int32_t len;
   complex_t *data;
+  int32_t len;
+  int8_t padding[4];
 } iVec_t;
 
 static uint32_t nearest2pow(uint32_t v);
@@ -58,55 +59,8 @@ static iVec_t vecFromStr(const char *str);
 static void vecComplement(iVec_t *a, iVec_t *b);
 static void vecNormalizeRealPart(iVec_t *vec);
 
-typedef struct fft_plan {
-  int N, LogN;
-  int *rev;
-} fft_plan_t;
-
-/*void FFTPlan::calc_rev (int n, int log_n) {
-  for (int i=0; i<n; ++i) {
-    m_rev[i] = 0;
-    for (int j=0; j<log_n; ++j) {
-      if (i & (1<<j))
-        m_rev[i] |= 1<<(log_n-1-j);
-    }
-  }
-}*/
-
-static fft_plan_t* fft_plan(int n, int logn) {
-  int i, j, k;
-  fft_plan_t *p = malloc(sizeof(fft_plan_t));
-  if (!p) { printf("Couldn't allocate memory for fft plan\n"); exit(1);}
-  p->N = n;
-  p->LogN = logn;
-  p->rev = malloc(n * sizeof(int));
-  if (!p->rev) { printf("Couldn't allocate memory for reverse bits permutations\n"); exit(1);}
-
-  //calculate bit permutations
-  for(j=i=1; i<n; ++i) {
-    if(i < j) {
-      p->rev[i-1] = j-1;
-    }
-
-    k = n >> 1;
-    while(k < j) {
-      j = j - k;
-      k >>= 1;
-    }
-    j = j + k;
-  }
-
-  return p;
-}
-
-static void fft_plan_free(fft_plan_t *p) {
-  if (p) {
-    if (p->rev) free(p->rev);
-    free(p);
-  }
-}
 ///////////////////////////////////////////////////////
-static bool fft(complex_t *dat, fft_plan_t *plan, bool inv);
+static bool fft(complex_t *dat, int32_t N, int32_t LogN, bool inv);
 
 #define MAX_LOG2_N 32
 
@@ -143,21 +97,21 @@ static double ICoef[MAX_LOG2_N] = {
 
 
 
-bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
+bool fft(complex_t *dat, int32_t N, int32_t LogN, bool inv) {
   // parameters error check:
   assert(dat);
-  assert(NUMBER_IS_2_POW_K(plan->N));
-  assert(plan->LogN >= 2 && plan->LogN <= MAX_LOG2_N);
+  assert(NUMBER_IS_2_POW_K(N));
+  assert(LogN >= 2 && LogN <= MAX_LOG2_N);
 
   register int32_t i, j, n, k, io, ie, in, nn;
   complex_t tp, tq, u, w;
 
-  ie = plan->N; //N для каждого из уровней. для первого N. Для второго N/2 и т.д.
-  for(n=1; n<=plan->LogN; ++n) {
+  ie = N; //N для каждого из уровней. для первого N. Для второго N/2 и т.д.
+  for(n=1; n<=LogN; ++n) {
     //rw и iw - поворотный коэффициент для LogN.
     //w = -2.0 * M_PI / pow(2.0, n)
-    w.r = RCoef[plan->LogN - n]; //cos(w)
-    w.i = ICoef[plan->LogN - n]; //sin(w)
+    w.r = RCoef[LogN - n]; //cos(w)
+    w.i = ICoef[LogN - n]; //sin(w)
 
     if(inv)
       w.i = -w.i; //комплексно сопряженное.
@@ -167,7 +121,7 @@ bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
     u.i = 0.0;
 
     for(j=0; j<in; ++j) {
-      for(i=j; i<plan->N; i+=ie) {
+      for(i=j; i<N; i+=ie) {
         io = i + in; //io = i + N/2 для каждого из уровней...
 
         //s(2k) = s0(k) + s1(k)
@@ -188,8 +142,8 @@ bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
 
   //nn = N/2
   //bit-reversal permutation :)
-  nn = plan->N >> 1;
-  for(j=i=1; i<plan->N; ++i) {
+  nn = N >> 1;
+  for(j=i=1; i<N; ++i) {
     if(i < j) {
       //swap dat[io] and dat[in].
       io = i - 1;
@@ -197,7 +151,6 @@ bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
       tp = dat[in];
       dat[in] = dat[io];
       dat[io] = tp;
-      printf("swap %d and %d\n", io, in);
     }
 
     k = nn;
@@ -213,9 +166,8 @@ bool fft(complex_t *dat, fft_plan_t *plan, bool inv) {
   if(!inv)
     return true;
 
-  w.r = 1.0 / plan->N;
-  for(i=0; i<plan->N;
-      ++i) {
+  w.r = 1.0 / N;
+  for(i=0; i<N; ++i) {
     dat[i].r *= w.r;
     dat[i].i *= w.r;
   }
@@ -273,7 +225,7 @@ uint32_t logOfPower2(uint32_t v) {
 }
 //////////////////////////////////////////////////////////////////////////
 
-void vecPrint(const iVec_t *vec) {
+void __attribute_used__ vecPrint(const iVec_t *vec) {
   int i;
   for (i = 0; i < vec->len; ++i)
     printf("(%.2f %.2f) ", vec->data[i].r, vec->data[i].i);
@@ -322,49 +274,38 @@ void vecNormalizeRealPart(iVec_t *vec) {
   int32_t carry = 0;
   int32_t l;
 
+  for (l = 0; l < vec->len; ++l)
+    vec->data[l].r = round(vec->data[l].r);
+
   for (l = vec->len-1; l >= 0; --l) {
     vec->data[l].r += carry;
     carry = vec->data[l].r / 10;
-    vec->data[l].r = ((int32_t)round(vec->data[l].r)) % 10;
+    vec->data[l].r = ((int32_t)vec->data[l].r) % 10;
   }
 }
 ///////////////////////////////////////////////////////
 
-char *multiply(char *aStr, char *bStr) {
+char *multiply(const char *aStr, const char *bStr) {
   iVec_t a, b;
-  int i;
+  int i, n, logn;
   char *res, *tmp;
-  fft_plan_t *fftp;
-
 
   a = vecFromStr(aStr);
   b = vecFromStr(bStr);
   vecComplement(&a, &b);
 
-  printf("from str: ");
-  vecPrint(&a);
+  n = a.len;
+  logn = logOfPower2(n);
 
-  fftp = fft_plan(a.len, logOfPower2(a.len));
+  fft(a.data, n, logn, false);
+  fft(b.data, n, logn, false);
 
-  fft(a.data, fftp, false);
-  fft(b.data, fftp, false);
-
-  printf("fft direct: ");
-  vecPrint(&a);
   for (i = 0; i < a.len; ++i) {
     a.data[i] = complex_mul(a.data[i], b.data[i]);
   }
 
-  printf("operation: ");
-  vecPrint(&a);
-  fft(a.data, fftp, true);
-
-  printf("fft inverse: ");
-  vecPrint(&a);
+  fft(a.data, n, logn, true);
   vecNormalizeRealPart(&a);
-
-  printf("normlized: ");
-  vecPrint(&a);
 
   res = malloc(a.len);
   tmp = res;
