@@ -6,7 +6,7 @@ CONFIG -= qt
 INCLUDEPATH += include \
   /opt/intel/compilers_and_libraries/linux/mkl/include
 
-QMAKE_CFLAGS += -msse2
+QMAKE_CFLAGS += -msse4.2
 
 SOURCES += \
     src/main.c \
