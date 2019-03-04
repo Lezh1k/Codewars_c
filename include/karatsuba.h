@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 typedef int8_t pol_item_t;
-
 typedef struct pol {
   pol_item_t *data;
   size_t len;
@@ -13,17 +12,17 @@ typedef struct pol {
 
 pol_t pol_new(size_t len);
 void pol_free(pol_t p);
-
 pol_t pol_from_str(const char *str);
 
-pol_t pol_sum(pol_t l, pol_t r);
-pol_t pol_sub(pol_t l, pol_t r);
+pol_t pol_sum(pol_t l,
+              pol_t r);
 
-void pol_pow10(pol_t *p, size_t n);
-pol_t pol_naive_mul(pol_t l, pol_t r);
-pol_t pol_karatsuba_mul(pol_t x, pol_t y);
+pol_t pol_sub(pol_t l,
+              pol_t r);
+
+pol_t pol_karatsuba_mul(pol_t *x,
+                        pol_t *y);
 
 
 void pol_print(pol_t p);
-
 #endif // KARATSUBA_H
