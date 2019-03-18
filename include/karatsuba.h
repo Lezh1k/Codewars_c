@@ -7,10 +7,10 @@
 typedef int8_t pol_item_t;
 typedef struct pol {
   pol_item_t *data;
-  size_t len;
+  uint32_t len;
 } pol_t;
 
-pol_t pol_new(size_t len);
+pol_t pol_new(uint32_t len);
 void pol_free(pol_t p);
 pol_t pol_from_str(const char *str);
 

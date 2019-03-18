@@ -15,7 +15,7 @@ static void pol_pow10(pol_t *p, size_t n);
 static pol_t pol_naive_mul(const pol_t *l, const pol_t *r);
 static uint32_t nearest2pow(uint32_t v);
 
-pol_t pol_new(size_t len) {
+pol_t pol_new(uint32_t len) {
   pol_t p = {.len = len};
   p.data = calloc(p.len, sizeof(pol_item_t));
   assert(p.data);
@@ -41,7 +41,7 @@ uint32_t nearest2pow(uint32_t v) {
 //////////////////////////////////////////////////////////////////////////
 
 pol_t pol_from_str(const char *str) {
-  uint32_t len = strlen(str);
+  uint32_t len = (uint32_t)strlen(str);
   uint32_t alen = nearest2pow(len);
   pol_t p = pol_new(alen);
   pol_item_t *dst;
@@ -80,7 +80,7 @@ void pol_pow10(pol_t *p, size_t n) {
 
 void pol_print(pol_t p) {
   while (p.len--)
-    printf("%d", *p.data++);
+    printf("%d", p.data[p.len]);
   printf("\n");
 }
 ///////////////////////////////////////////////////////
@@ -88,6 +88,8 @@ void pol_print(pol_t p) {
 pol_t pol_sum(pol_t l, pol_t r) {
   pol_pair_t pair = get_pair(&l, &r);
   pol_t res = pol_new(pair.big->len+1);
+  --res.len;
+
   int8_t carry = 0;
   size_t i;
   for (i = 0; i < pair.sml->len; ++i) {
@@ -102,18 +104,14 @@ pol_t pol_sum(pol_t l, pol_t r) {
     res.data[i] %= 10;
   }
 
-  if (!carry) {
-    --res.len;
-    return res;
-  }
-
   res.data[i] = carry; //cause big.len = res.len - 1
+  if (carry) ++res.len;
   return res;
 }
 ///////////////////////////////////////////////////////
 
 pol_t pol_sub(pol_t l, pol_t r) {
-//  assert(l.len >= r.len);
+  assert(l.len >= r.len);
   pol_t res = pol_new(l.len);
   int8_t carry = 0;
   size_t i;
@@ -156,21 +154,12 @@ static void pol_complement(pol_t *x, pol_t *y) {
   pol_t *t;
   if (x->len == y->len) return;
   if (y->len > x->len) {
-    t = x; x = y; y = x; //swap pointers
+    t = x; x = y; y = t; //swap pointers
   }
   y->data = realloc(y->data, x->len*sizeof(pol_item_t));
   assert(y->data); //break if realloc failed
   memset(y->data + y->len, 0, (x->len - y->len) * sizeof(pol_item_t));
   y->len = x->len;
-}
-///////////////////////////////////////////////////////
-
-static void pol_normalize_len(pol_t *p) {
-  pol_item_t *end = p->data + p->len - 1;
-  while (end >= p->data && !*end) {
-    --p->len;
-    --end;
-  }
 }
 ///////////////////////////////////////////////////////
 
@@ -181,8 +170,7 @@ static void pol_print_descr(const char *descr, pol_t p) {
 ///////////////////////////////////////////////////////
 
 pol_t pol_karatsuba_mul(pol_t *x, pol_t *y) {
-  #define NAIVE_THRESHOLD 2
-  size_t n = x->len > y->len ? x->len : y->len;
+  uint32_t n = x->len > y->len ? x->len : y->len;
   pol_t xl, xr, yl, yr;
   pol_t p1, p2, p3;
   pol_t xlr, ylr;
@@ -190,28 +178,26 @@ pol_t pol_karatsuba_mul(pol_t *x, pol_t *y) {
   pol_t s1;
   pol_t res;
 
-  printf("\n******************\n");
-  pol_print_descr("x", *x);
-  pol_print_descr("y", *y);
-  //todo check threshold
-  if (n <= NAIVE_THRESHOLD) {
-    printf("naive\n");
+  if (x->len == 0 || y->len == 0)
+    return pol_new(0);
+  if (n == 1)
     return pol_naive_mul(x, y);
-  }
 
+
+  printf("\n******************\n");
   pol_complement(x, y);
   pol_print_descr("x", *x);
   pol_print_descr("y", *y);
 
-  xl = pol_new(n / 2);
+  xl = pol_new(n >> 1);
   yl = pol_new(xl.len);
   xr = pol_new(n - xl.len);
   yr = pol_new(xr.len);
 
   memcpy(xr.data, x->data, xr.len*sizeof(pol_item_t));
-  memcpy(xl.data, x->data + xr.len, xl.len*sizeof (pol_item_t));
+  memcpy(xl.data, &x->data[xr.len], xl.len*sizeof (pol_item_t));
   memcpy(yr.data, y->data, yr.len*sizeof(pol_item_t));
-  memcpy(yl.data, y->data + yr.len, yl.len*sizeof (pol_item_t));
+  memcpy(yl.data, &y->data[yr.len], yl.len*sizeof (pol_item_t));
 
   pol_print_descr("xl", xl);
   pol_print_descr("xr", xr);
@@ -233,10 +219,6 @@ pol_t pol_karatsuba_mul(pol_t *x, pol_t *y) {
   pol_print_descr("p31", p31);
   p312 = pol_sub(p31, p2);
   pol_print_descr("p312", p312);
-
-  pol_normalize_len(&p2);
-  pol_normalize_len(&p312);
-  pol_normalize_len(&p1);
 
   pol_pow10(&p1, n);
   pol_pow10(&p312, n - n/2);

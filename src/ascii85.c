@@ -24,7 +24,7 @@ char *toAscii85 (block b) {
   int m, i;
   uint8_t *dst, *data;
   m = (nearestMultipleOf4(b.n)/4)*5+5;
-  data = malloc(m); //for <~~>\0
+  data = malloc((size_t)m); //for <~~>\0
   dst = data;
   *dst++ = '<';
   *dst++ = '~';
@@ -84,9 +84,9 @@ block fromAscii85 (const char *in) {
   uint32_t v = 0;
   int nb, ndst, i;
   uint8_t *data;
-  uint8_t *src = (uint8_t*)in;
+  const uint8_t *src = (const uint8_t*)in;
   res.n = ascii85len(in);
-  data = malloc(res.n+1); //for \0
+  data = malloc((size_t)res.n+1); //for \0
   res.data = (char*)data;
   nb = ndst = 0;
   src += 2; //<~
@@ -111,10 +111,10 @@ block fromAscii85 (const char *in) {
     }
 
     if (nb==5) {
-      data[ndst] = v >> 24;
-      data[ndst+1] = v >> 16;
-      data[ndst+2] = v >> 8;
-      data[ndst+3] = v;
+      data[ndst] = (uint8_t) (v >> 24);
+      data[ndst+1] = (uint8_t) (v >> 16);
+      data[ndst+2] = (uint8_t) (v >> 8);
+      data[ndst+3] = (uint8_t) (v);
       ndst += 4;
       nb = 0;
       v = 0;
