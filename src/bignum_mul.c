@@ -34,17 +34,6 @@ static complex_t complex_mul(complex_t a, complex_t b) {
 }
 ///////////////////////////////////////////////////////
 
-//a = a.r + a.i; b = b.r + b.i;
-//a/b = (ar*br + ai*bi)/(br*br + bi*bi) + (ai*br - ar*bi)/(br*br + bi*bi)i
-static complex_t complex_div(complex_t a, complex_t b) {
-  complex_t res;
-  double denom = b.r*b.r + b.i*b.i;  
-  res.r = (a.r*b.r + a.i*b.i) / denom;
-  res.i = (a.i*b.r - a.r*b.i) / denom;
-  return res;
-}
-///////////////////////////////////////////////////////
-
 typedef struct iVec {
   complex_t *data;
   int32_t len;
@@ -214,7 +203,7 @@ uint32_t nearest2pow(uint32_t v) {
 
 uint32_t logOfPower2(uint32_t v) {
   uint32_t c = 32; // c will be the number of zero bits on the right
-  v &= -(int32_t)v;
+  v &= (uint32_t)(-(int32_t)v); //set's least significant bit...
   if (v) --c;
   if (v & 0x0000FFFF) c -= 16;
   if (v & 0x00FF00FF) c -= 8;

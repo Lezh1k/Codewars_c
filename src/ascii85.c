@@ -35,11 +35,14 @@ char *toAscii85 (block b) {
 
     switch (b.n) {
       default:
-        v |= (uint32_t)((uint8_t)b.data[3]);
+        v |= (uint32_t)((uint8_t)b.data[3]);        
+        /* fall through */
       case 3:
         v |= (uint32_t)((uint8_t)b.data[2]) << 8;
+        /* fall through */
       case 2:
         v |= (uint32_t)((uint8_t)b.data[1]) << 16;
+        /* fall through */
       case 1:
         v |= (uint32_t)((uint8_t)b.data[0]) << 24;
     }

@@ -7,6 +7,7 @@ INCLUDEPATH += include \
   /opt/intel/compilers_and_libraries/linux/mkl/include
 
 QMAKE_CFLAGS += -msse4.2
+LIBS += -lgmp
 
 SOURCES += \
     src/main.c \
@@ -17,7 +18,10 @@ SOURCES += \
     src/ascii85.c \
     src/bignum_mul.c \
     src/pointer_monster.c \
-    src/karatsuba.c
+    src/karatsuba.c \
+    src/commons.c \
+    src/mul.s \
+    src/skyscapers.c
 
 HEADERS += \
     include/brainfuck.h \
@@ -27,4 +31,6 @@ HEADERS += \
     include/ascii85.h \
     include/bignum_mul.h \
     include/pointer_monster.h \
-    include/karatsuba.h
+    include/karatsuba.h \
+    include/commons.h \
+    include/skyscapers.h
