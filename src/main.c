@@ -16,7 +16,6 @@ int main(int argc, char **argv) {
 
   initFromFile(path);
   calculate(2015.0, 0.0, 42.879965, 74.617977, 2017.0, &dec, &dip, &ti, &gv);
-
   printf("dec : %f\n", dec);
 }
 ///////////////////////////////////////////////////////
@@ -27,13 +26,10 @@ static double sp[13];
 static double cp[13];
 static double fn[13];
 static double fm[13];
-static double pp[13];
 
 static double k[13][13];
 static double c[13][13];
 static double cd[13][13];
-static double tc[13][13];
-static double dp[13][13];
 static double snorm2d[13][13];
 
 void initFromFile(const char *path) {
@@ -41,7 +37,6 @@ void initFromFile(const char *path) {
   double epoch;
   int n, m, j, D1, D2;
   double gnm, hnm, dgnm, dhnm, flnmj;
-
   static char model[20], c_str[81], c_new[5];
 
   wmmdat = fopen(path, "r");
@@ -52,9 +47,8 @@ void initFromFile(const char *path) {
 
   /* INITIALIZE CONSTANTS */
   sp[0] = 0.0;
-  cp[0] = pp[0] = 1.0;
+  cp[0] = 1.0;
   snorm2d[0][0] = 1.0;
-  dp[0][0] = 0.0;
 
   /* READ WORLD MAGNETIC MODEL SPHERICAL HARMONIC COEFFICIENTS */
   c[0][0] = 0.0;
@@ -145,9 +139,10 @@ void calculate(double epoch, double alt, double glat, double glon,
 #define c4  (a4-b4)
 #define pi M_PI
 #define dtr (pi/180.0)
-
-
-  static int n, m, D3, D4;
+  double pp[13];
+  double tc[13][13];
+  double dp[13][13];
+  int n, m, D3, D4;
   double dt,
       rlon, rlat,
       srlon, srlat,
@@ -157,6 +152,9 @@ void calculate(double epoch, double alt, double glat, double glon,
       d, ca, sa, aor, ar, br, bt,
       bp, bpp, par, temp1, temp2,
       parp, bx, by, bz, bh;
+
+  pp[0] = 1.0;
+  dp[0][0] = 0.0;
 
   dt = time - epoch;
   rlon = glon*dtr;
@@ -170,21 +168,21 @@ void calculate(double epoch, double alt, double glat, double glon,
   sp[1] = srlon;
   cp[1] = crlon;
 
-  /* CONVERT FROM GEODETIC COORDS. TO SPHERICAL COORDS. */
-  q = sqrt(a2-c2*srlat2);
+  //CONVERT FROM GEODETIC COORDS. TO SPHERICAL COORDS.
+  q = sqrt(a2 - c2*srlat2);
   q1 = alt*q;
   q2 = ((q1+a2)/(q1+b2))*((q1+a2)/(q1+b2));
   ct = srlat/sqrt(q2*crlat2+srlat2);
-  st = sqrt(1.0-(ct*ct));
-  r2 = (alt*alt)+2.0*q1+(a4-c4*srlat2)/(q*q);
+  st = sqrt(1.0 - (ct*ct));
+  r2 = (alt*alt) + 2.0*q1 + (a4 - c4*srlat2)/(q*q);
   r = sqrt(r2);
-  d = sqrt(a2*crlat2+b2*srlat2);
-  ca = (alt+d)/r;
+  d = sqrt(a2*crlat2 + b2*srlat2);
+  ca = (alt + d)/r;
   sa = c2*crlat*srlat/(r*d);
 
   for (m=2; m<=maxord; m++) {
-    sp[m] = sp[1]*cp[m-1]+cp[1]*sp[m-1];
-    cp[m] = cp[1]*cp[m-1]-sp[1]*sp[m-1];
+    sp[m] = sp[1]*cp[m-1] + cp[1]*sp[m-1];
+    cp[m] = cp[1]*cp[m-1] - sp[1]*sp[m-1];
   }
 
   aor = re/r;
@@ -193,10 +191,9 @@ void calculate(double epoch, double alt, double glat, double glon,
   for (n=1; n<=maxord; n++) {
     ar = ar*aor;
     for (m=0, D3=1 , D4=(n+m+D3)/D3; D4>0; D4--, m+=D3) {
-      /*
-   COMPUTE UNNORMALIZED ASSOCIATED LEGENDRE POLYNOMIALS
-   AND DERIVATIVES VIA RECURSION RELATIONS
-*/
+
+      //COMPUTE UNNORMALIZED ASSOCIATED LEGENDRE POLYNOMIALS
+      //AND DERIVATIVES VIA RECURSION RELATIONS
       do {
         if (n == m) {
           snorm2d[m][n] = st * snorm2d[m-1][n-1];
@@ -218,16 +215,12 @@ void calculate(double epoch, double alt, double glat, double glon,
         }
       } while(0);
 
-      /*
-    TIME ADJUST THE GAUSS COEFFICIENTS
-*/
-
+      //TIME ADJUST THE GAUSS COEFFICIENTS
       tc[m][n] = c[m][n]+dt*cd[m][n];
       if (m != 0)
         tc[n][m-1] = c[n][m-1]+dt*cd[n][m-1];
-      /*
-    ACCUMULATE TERMS OF THE SPHERICAL HARMONIC EXPANSIONS
-*/
+
+      //ACCUMULATE TERMS OF THE SPHERICAL HARMONIC EXPANSIONS
       par = ar * snorm2d[m][n];
       if (m == 0) {
         temp1 = tc[m][n]*cp[m];
@@ -240,43 +233,38 @@ void calculate(double epoch, double alt, double glat, double glon,
       bt = bt-ar*temp1*dp[m][n];
       bp += (fm[m]*temp2*par);
       br += (fn[n]*temp1*par);
-      /*
-    SPECIAL CASE:  NORTH/SOUTH GEOGRAPHIC POLES
-*/
+
+      //SPECIAL CASE:  NORTH/SOUTH GEOGRAPHIC POLES
       if (st == 0.0 && m == 1) {
         if (n == 1)
           pp[n] = pp[n-1];
         else
           pp[n] = ct*pp[n-1] - k[m][n]*pp[n-2];
         parp = ar*pp[n];
-        bpp += (fm[m]*temp2*parp);
+        bpp += fm[m] * temp2 * parp;
       }
     }
   }
   if (st == 0.0) bp = bpp;
   else bp /= st;
-  /*
-    ROTATE MAGNETIC VECTOR COMPONENTS FROM SPHERICAL TO
-    GEODETIC COORDINATES
-*/
-  bx = -bt*ca-br*sa;
+
+  //ROTATE MAGNETIC VECTOR COMPONENTS FROM SPHERICAL TO
+  //GEODETIC COORDINATES
+  bx = -bt*ca - br*sa;
   by = bp;
-  bz = bt*sa-br*ca;
-  /*
-    COMPUTE DECLINATION (DEC), INCLINATION (DIP) AND
-    TOTAL INTENSITY (TI)
-*/
+  bz = bt*sa - br*ca;
+
+  //COMPUTE DECLINATION (DEC), INCLINATION (DIP) AND
+  //TOTAL INTENSITY (TI)
   bh = sqrt((bx*bx)+(by*by));
   *ti = sqrt((bh*bh)+(bz*bz));
   *dec = atan2(by,bx)/dtr;
   *dip = atan2(bz,bh)/dtr;
-  /*
-    COMPUTE MAGNETIC GRID VARIATION IF THE CURRENT
-    GEODETIC POSITION IS IN THE ARCTIC OR ANTARCTIC
-    (I.E. GLAT > +55 DEGREES OR GLAT < -55 DEGREES)
 
-    OTHERWISE, SET MAGNETIC GRID VARIATION TO -999.0
-*/
+  //COMPUTE MAGNETIC GRID VARIATION IF THE CURRENT
+  //GEODETIC POSITION IS IN THE ARCTIC OR ANTARCTIC
+  //(I.E. GLAT > +55 DEGREES OR GLAT < -55 DEGREES)
+  //OTHERWISE, SET MAGNETIC GRID VARIATION TO -999.0
   *gv = -999.0;
   if (fabs(glat) >= 55.)
   {
