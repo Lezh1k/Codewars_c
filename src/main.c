@@ -98,21 +98,20 @@ static double snorm2d[13][13] = {
 #endif
 
 static void initFromFile(const char *path);
-static void calculate(double epoch, double alt, double glat, double glon,
-                      double time, double *dec, double *dip,
-                      double *ti, double *gv);
+static void calculate(double alt, double lat, double lon,
+                      double year, double *declination, double *inclination,
+                      double *totalIntensity, double *gridVariation);
 
 int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  static const char *path = "/home/lezh1k/SRC/WMM2015LegacyC/WMM.COF";
-  double dec, dip, ti, gv;
-
 #ifdef MAGNETIC_COFF_FILE
+//  static const char *path = "/home/lezh1k/SRC/WMM2015LegacyC/WMM.COF";
+
   initFromFile(path);
 #endif
-
-  calculate(2015.0, 0.0, 42.879965, 74.617977, 2019.0, &dec, &dip, &ti, &gv);
+  double dec, dip, ti, gv;
+  calculate(0.0, 42.879965, 74.617977, 2019.0, &dec, &dip, &ti, &gv);
   printf("dec : %f\n", dec);
 }
 ///////////////////////////////////////////////////////
@@ -208,9 +207,9 @@ void initFromFile(const char *path) {
 }
 ///////////////////////////////////////////////////////
 
-void calculate(double epoch, double alt, double glat, double glon,
-               double time, double *dec, double *dip,
-               double *ti, double *gv) {
+void calculate(double alt, double lat, double lon,
+               double year, double *declination, double *inclination,
+               double *totalIntensity, double *gridVariation) {
 
 #define a   6378.137
 #define b   6356.7523142
@@ -223,6 +222,8 @@ void calculate(double epoch, double alt, double glat, double glon,
 #define c4  (a4-b4)
 #define pi M_PI
 #define dtr (pi/180.0)
+
+#define epoch 2015.0
 
   int n, m, D3, D4;
   double pp[13];
@@ -241,9 +242,9 @@ void calculate(double epoch, double alt, double glat, double glon,
   pp[0] = 1.0;
   dp[0][0] = 0.0;
 
-  dt = time - epoch;
-  rlon = glon*dtr;
-  rlat = glat*dtr;
+  dt = year - epoch;
+  rlon = lon*dtr;
+  rlat = lat*dtr;
   srlon = sin(rlon);
   srlat = sin(rlat);
   crlon = cos(rlon);
@@ -328,8 +329,10 @@ void calculate(double epoch, double alt, double glat, double glon,
         parp = ar*pp[n];
         bpp += fm[m] * temp2 * parp;
       }
-    }
-  }
+
+    } //for (m=0, D3=1 , D4=(n+m+D3)/D3; D4>0; D4--, m+=D3)
+  } //for (n=1; n<=maxord; n++)
+
   if (st == 0.0) bp = bpp;
   else bp /= st;
 
@@ -342,23 +345,22 @@ void calculate(double epoch, double alt, double glat, double glon,
   //COMPUTE DECLINATION (DEC), INCLINATION (DIP) AND
   //TOTAL INTENSITY (TI)
   bh = sqrt((bx*bx)+(by*by));
-  *ti = sqrt((bh*bh)+(bz*bz));
-  *dec = atan2(by,bx)/dtr;
-  *dip = atan2(bz,bh)/dtr;
+  *totalIntensity = sqrt((bh*bh)+(bz*bz));
+  *declination = atan2(by,bx)/dtr;
+  *inclination = atan2(bz,bh)/dtr;
 
   //COMPUTE MAGNETIC GRID VARIATION IF THE CURRENT
   //GEODETIC POSITION IS IN THE ARCTIC OR ANTARCTIC
   //(I.E. GLAT > +55 DEGREES OR GLAT < -55 DEGREES)
   //OTHERWISE, SET MAGNETIC GRID VARIATION TO -999.0
-  *gv = -999.0;
-  if (fabs(glat) >= 55.)
-  {
-    if (glat > 0.0 && glon >= 0.0) *gv = *dec-glon;
-    if (glat > 0.0 && glon < 0.0) *gv = *dec+fabs(glon);
-    if (glat < 0.0 && glon >= 0.0) *gv = *dec+glon;
-    if (glat < 0.0 && glon < 0.0) *gv = *dec-fabs(glon);
-    if (*gv > +180.0) *gv -= 360.0;
-    if (*gv < -180.0) *gv += 360.0;
+  *gridVariation = -999.0;
+  if (fabs(lat) >= 55.) {
+    if (lat > 0.0 && lon >= 0.0) *gridVariation = *declination-lon;
+    if (lat > 0.0 && lon < 0.0) *gridVariation = *declination+fabs(lon);
+    if (lat < 0.0 && lon >= 0.0) *gridVariation = *declination+lon;
+    if (lat < 0.0 && lon < 0.0) *gridVariation = *declination-fabs(lon);
+    if (*gridVariation > +180.0) *gridVariation -= 360.0;
+    if (*gridVariation < -180.0) *gridVariation += 360.0;
   }
 
   return;
