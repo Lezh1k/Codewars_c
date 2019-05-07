@@ -16,24 +16,24 @@ static double c[13][13];
 static double cd[13][13];
 static double snorm2d[13][13];
 #else
-static double sp[13] = {
+static const double ro_sp[13] = {
   0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000
 };
 
-static double cp[13] = {
+static const double ro_cp[13] = {
   1.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000
 };
 
-static double fn[13] = {
+static const double ro_fn[13] = {
   0.000000, 2.000000, 3.000000, 4.000000, 5.000000, 6.000000, 7.000000, 8.000000, 9.000000, 10.000000, 11.000000, 12.000000, 13.000000
 };
 
-static double fm[13] = {
+static const double ro_fm[13] = {
   0.000000, 1.000000, 2.000000, 3.000000, 4.000000, 5.000000, 6.000000, 7.000000, 8.000000, 9.000000, 10.000000, 11.000000, 12.000000
 };
 ///////////////////////////////////////////////////////
 
-static double k[13][13] = {
+static const double ro_k[13][13] = {
   {0.000000, -0.000000, 0.333333, 0.266667, 0.257143, 0.253968, 0.252525, 0.251748, 0.251282, 0.250980, 0.250774, 0.250627, 0.250518},
   {0.000000, 0.000000, 0.000000, 0.200000, 0.228571, 0.238095, 0.242424, 0.244755, 0.246154, 0.247059, 0.247678, 0.248120, 0.248447},
   {0.000000, 0.000000, -1.000000, 0.000000, 0.142857, 0.190476, 0.212121, 0.223776, 0.230769, 0.235294, 0.238390, 0.240602, 0.242236},
@@ -49,7 +49,7 @@ static double k[13][13] = {
   {0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, -0.047619},
 };
 
-static double c[13][13] = {
+static const double ro_c[13][13] = {
   {0.000000, -29438.200000, -3666.750000, 3379.500000, 3970.312500, -1834.087500, 1001.962500, 2190.581250, 1216.617188, 522.285156, -360.851562, 1033.347656, -1320.388672},
   {4796.300000, -1493.500000, 5221.613570, -7200.275099, 4509.091716, 3660.985920, 1279.741545, -2692.142907, 596.578125, 1121.150508, -1484.045050, -652.941026, -89.702746},
   {-4923.181215, -553.217028, 1454.056653, 2369.491211, 460.965414, 1473.255346, 1080.467993, -205.621751, -947.792009, 325.950125, 42.138384, -940.810339, 397.564930},
@@ -64,7 +64,7 @@ static double c[13][13] = {
   {-897.027462, 238.538958, 1168.597463, -1071.214341, 100.206406, 145.809237, -11.705388, 17.558082, 5.108650, -8.489224, -0.556297, 0.454214, -0.000000},
 };
 
-static double cd[13][13] = {
+static const double ro_cd[13][13] = {
   {0.000000, 7.000000, -16.500000, 6.000000, -3.500000, -2.362500, -11.550000, -8.043750, -5.027344, -9.496094, 0.000000, -0.000000, 0.000000},
   {-30.200000, 9.000000, -10.738715, -17.452614, -4.980587, 6.099949, -9.451562, -7.093921, 13.406250, -12.740347, -0.000000, 0.000000, 0.000000},
   {-51.268704, -14.982239, 0.259808, 3.872983, -25.435273, -6.148170, -1.494423, -8.688243, -11.216473, -0.000000, -21.069192, -0.000000, -0.000000},
@@ -80,7 +80,7 @@ static double cd[13][13] = {
   {-0.000000, 0.000000, -64.922081, 48.691561, -0.000000, 0.000000, -0.000000, 0.000000, 0.000000, -0.000000, 0.000000, -0.056777, -0.056777},
 };
 
-static double snorm2d[13][13] = {
+static const double ro_snorm2d[13][13] = {
   {1.000000, 1.000000, 1.500000, 2.500000, 4.375000, 7.875000, 14.437500, 26.812500, 50.273438, 94.960938, 180.425781, 344.449219, 660.194336},
   {0.000000, 1.000000, 1.732051, 3.061862, 5.533986, 10.166581, 18.903125, 35.469604, 67.031250, 127.403467, 243.286074, 466.386447, 897.027462},
   {0.000000, 0.000000, 0.866025, 1.936492, 3.913119, 7.685213, 14.944232, 28.960810, 56.082367, 108.650042, 210.691920, 409.047973, 795.129861},
@@ -106,8 +106,7 @@ int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
 #ifdef MAGNETIC_COFF_FILE
-//  static const char *path = "/home/lezh1k/SRC/WMM2015LegacyC/WMM.COF";
-
+  static const char *path = "/home/lezh1k/SRC/WMM2015LegacyC/WMM.COF";
   initFromFile(path);
 #endif
   double dec, dip, ti, gv;
@@ -117,6 +116,7 @@ int main(int argc, char **argv) {
 ///////////////////////////////////////////////////////
 
 void initFromFile(const char *path) {
+  #ifdef MAGNETIC_COFF_FILE
   FILE *wmmdat;
   double epoch;
   int n, m, j, D1, D2;
@@ -203,7 +203,7 @@ void initFromFile(const char *path) {
   k[1][1] = 0.0;
 
   fclose(wmmdat);
-  return;
+#endif
 }
 ///////////////////////////////////////////////////////
 
@@ -229,6 +229,9 @@ void calculate(double alt, double lat, double lon,
   double pp[13];
   double tc[13][13];
   double dp[13][13];
+  double sp[13];
+  double cp[13];
+  double snorm2d[13][13];
   double dt;
   double rlon, rlat;
   double srlon, srlat;
@@ -251,6 +254,16 @@ void calculate(double alt, double lat, double lon,
   crlat = cos(rlat);
   srlat2 = srlat*srlat;
   crlat2 = crlat*crlat;
+
+  //copy from readonly to actual
+  for (int i = 0; i < 13; ++i) {
+    sp[i] = ro_sp[i];
+    cp[i] = ro_cp[i];
+    for (int j = 0; j < 13; ++j) {
+      snorm2d[i][j] = ro_snorm2d[i][j];
+    }
+  }
+
   sp[1] = srlon;
   cp[1] = crlon;
 
@@ -296,15 +309,15 @@ void calculate(double alt, double lat, double lon,
         if (n > 1 && n != m) {
           if (m > n-2) snorm2d[m][n-2] = 0.0;
           if (m > n-2) dp[m][n-2] = 0.0;
-          snorm2d[m][n] = ct * snorm2d[m][n-1] - k[m][n]*snorm2d[m][n-2];
-          dp[m][n] = ct*dp[m][n-1] - st*snorm2d[m][n-1] - k[m][n]*dp[m][n-2];
+          snorm2d[m][n] = ct * snorm2d[m][n-1] - ro_k[m][n]*snorm2d[m][n-2];
+          dp[m][n] = ct*dp[m][n-1] - st*snorm2d[m][n-1] - ro_k[m][n]*dp[m][n-2];
         }
       } while(0);
 
       //TIME ADJUST THE GAUSS COEFFICIENTS
-      tc[m][n] = c[m][n]+dt*cd[m][n];
+      tc[m][n] = ro_c[m][n]+dt*ro_cd[m][n];
       if (m != 0)
-        tc[n][m-1] = c[n][m-1]+dt*cd[n][m-1];
+        tc[n][m-1] = ro_c[n][m-1]+dt*ro_cd[n][m-1];
 
       //ACCUMULATE TERMS OF THE SPHERICAL HARMONIC EXPANSIONS
       par = ar * snorm2d[m][n];
@@ -317,17 +330,17 @@ void calculate(double alt, double lat, double lon,
       }
 
       bt = bt-ar*temp1*dp[m][n];
-      bp += (fm[m]*temp2*par);
-      br += (fn[n]*temp1*par);
+      bp += (ro_fm[m]*temp2*par);
+      br += (ro_fn[n]*temp1*par);
 
       //SPECIAL CASE:  NORTH/SOUTH GEOGRAPHIC POLES
       if (st == 0.0 && m == 1) {
         if (n == 1)
           pp[n] = pp[n-1];
         else
-          pp[n] = ct*pp[n-1] - k[m][n]*pp[n-2];
+          pp[n] = ct*pp[n-1] - ro_k[m][n]*pp[n-2];
         parp = ar*pp[n];
-        bpp += fm[m] * temp2 * parp;
+        bpp += ro_fm[m] * temp2 * parp;
       }
 
     } //for (m=0, D3=1 , D4=(n+m+D3)/D3; D4>0; D4--, m+=D3)
@@ -354,15 +367,13 @@ void calculate(double alt, double lat, double lon,
   //(I.E. GLAT > +55 DEGREES OR GLAT < -55 DEGREES)
   //OTHERWISE, SET MAGNETIC GRID VARIATION TO -999.0
   *gridVariation = -999.0;
-  if (fabs(lat) >= 55.) {
-    if (lat > 0.0 && lon >= 0.0) *gridVariation = *declination-lon;
-    if (lat > 0.0 && lon < 0.0) *gridVariation = *declination+fabs(lon);
-    if (lat < 0.0 && lon >= 0.0) *gridVariation = *declination+lon;
-    if (lat < 0.0 && lon < 0.0) *gridVariation = *declination-fabs(lon);
-    if (*gridVariation > +180.0) *gridVariation -= 360.0;
-    if (*gridVariation < -180.0) *gridVariation += 360.0;
-  }
+  if (fabs(lat) < 55.0) return;
+  if (lat > 0.0 && lon >= 0.0) *gridVariation = *declination-lon;
+  if (lat > 0.0 && lon < 0.0) *gridVariation = *declination+fabs(lon);
+  if (lat < 0.0 && lon >= 0.0) *gridVariation = *declination+lon;
+  if (lat < 0.0 && lon < 0.0) *gridVariation = *declination-fabs(lon);
+  if (*gridVariation > +180.0) *gridVariation -= 360.0;
+  if (*gridVariation < -180.0) *gridVariation += 360.0;
 
-  return;
 }
 ///////////////////////////////////////////////////////
