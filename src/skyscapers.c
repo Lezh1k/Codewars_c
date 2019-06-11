@@ -7,6 +7,55 @@
 #include <stdint.h>
 #include "skyscapers.h"
 
+/*
+#define  SIZE  6
+
+static int clues[][SIZE * 4] = {
+  { 3, 2, 2, 3, 2, 1,
+    1, 2, 3, 3, 2, 2,
+    5, 1, 2, 2, 4, 3,
+    3, 2, 1, 2, 2, 4 },
+  { 0, 0, 0, 2, 2, 0,
+    0, 0, 0, 6, 3, 0,
+    0, 4, 0, 0, 0, 0,
+    4, 4, 0, 3, 0, 0 },
+  { 4, 4, 0, 3, 0, 0,
+    0, 0, 0, 2, 2, 0,
+    0, 0, 0, 6, 3, 0,
+    0, 4, 0, 0, 0, 0 },
+};
+
+static int expected[][SIZE][SIZE] = {
+  { { 2, 1, 4, 3, 5, 6 },
+    { 1, 6, 3, 2, 4, 5 },
+    { 4, 3, 6, 5, 1, 2 },
+    { 6, 5, 2, 1, 3, 4 },
+    { 5, 4, 1, 6, 2, 3 },
+    { 3, 2, 5, 4, 6, 1 } },
+  { { 5, 6, 1, 4, 3, 2 },
+    { 4, 1, 3, 2, 6, 5 },
+    { 2, 3, 6, 1, 5, 4 },
+    { 6, 5, 4, 3, 2, 1 },
+    { 1, 2, 5, 6, 4, 3 },
+    { 3, 4, 2, 5, 1, 6 } }
+};
+
+int check(int **solution, int (*expected)[SIZE]) {
+  int result = 0;
+  if (solution && expected) {
+    result = 1;
+    for (int i = 0; i < SIZE; i++) {
+      if (memcmp(solution[i], expected[i], SIZE * sizeof(int))) {
+        result = 0;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+///////////////////////////////////////////////////////*/
+
 #define SIZE 6
 #define FULL 0x3f
 
@@ -68,7 +117,9 @@ static bool col_is_ok(const state_t *st, int32_t c);
 
 static void solve_edge_row(state_t *st, int32_t r);
 static void solve_edge_col(state_t *st, int32_t c);
+
 static void solve_edge(state_t* st);
+
 static bool solve_cleared(state_t *st, int32_t ri, int32_t ci, int32_t it);
 
 static void print_state(const state_t *st);
@@ -85,7 +136,7 @@ state_t new_state() {
 ///////////////////////////////////////////////////////
 
 void init_clues(state_t *st,
-               const int32_t *clues) {
+                const int32_t *clues) {
   line_t rlines[SIZE];
   line_t clines[SIZE];
   int32_t i;
@@ -115,8 +166,8 @@ static const int32_t dir_steps[4] = {-1, 1, -1, 1};
 static const int32_t dir_starts[4] = {SIZE-1, 0, SIZE-1, 0};
 
 int32_t row_n(const state_t *st,
-          int32_t r,
-          direction_t d) {
+              int32_t r,
+              direction_t d) {
   assert(st);
   assert(r >= 0 && r < SIZE);
   assert(d == left || d == right);
@@ -136,8 +187,8 @@ int32_t row_n(const state_t *st,
 ///////////////////////////////////////////////////////
 
 int32_t row_n2(const state_t *st,
-           int32_t r,
-           direction_t d) {
+               int32_t r,
+               direction_t d) {
   assert(st);
   assert(r >= 0 && r < SIZE);
   assert(d == left || d == right);
@@ -162,8 +213,8 @@ int32_t row_n2(const state_t *st,
 ///////////////////////////////////////////////////////
 
 int32_t col_n(const state_t *st,
-          int32_t c,
-          direction_t d) {
+              int32_t c,
+              direction_t d) {
   assert(st);
   assert(c >= 0 && c < SIZE);
   assert(d == up|| d == down);
@@ -183,8 +234,8 @@ int32_t col_n(const state_t *st,
 ///////////////////////////////////////////////////////
 
 int32_t col_n2(const state_t *st,
-           int32_t c,
-           direction_t d) {
+               int32_t c,
+               direction_t d) {
   assert(st);
   assert(c >= 0 && c < SIZE);
   assert(d == up|| d == down);
@@ -309,17 +360,6 @@ void print_state(const state_t *st) {
 }
 ///////////////////////////////////////////////////////
 
-static int32_t trailing_zeros(uint8_t v) {
-  int32_t c = 8; // c will be the number of zero bits on the right
-  v &= (uint8_t)(-((int8_t)v)); //the least significant bit in v
-  if (v) c--;
-  if (v & 0x0f) c -= 4;
-  if (v & 0x33) c -= 2;
-  if (v & 0x55) c -= 1;
-  return c;
-}
-///////////////////////////////////////////////////////
-
 bool check_clues(const state_t *st, int32_t r, int32_t c) {
   int32_t clue, cnt;
 
@@ -328,7 +368,7 @@ bool check_clues(const state_t *st, int32_t r, int32_t c) {
       return false;
     if ((clue = st->m_clues[SIZE + r]) && (cnt = row_n(st, r, left)) != clue)
       return false;
-  } else {
+  } else { //check not full row
     if ((clue = st->m_clues[SIZE*4 - 1 - r]) && (cnt = row_n2(st, r, right) > clue))
       return false;
     if ((clue = st->m_clues[SIZE + r]) && (cnt = row_n2(st, r, left)) > clue)
@@ -340,7 +380,7 @@ bool check_clues(const state_t *st, int32_t r, int32_t c) {
       return false;
     if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_n(st, c, up)) != clue)
       return false;
-  } else {
+  } else { //check not full col
     if ((clue = st->m_clues[c]) && (cnt = col_n2(st, c, down)) > clue)
       return false;
     if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_n2(st, c, up)) > clue)
@@ -398,7 +438,7 @@ void solve_edge_col(state_t *st,
 
   if (cD == SIZE) {
     for (i = 0; i < SIZE; ++i)
-      set_item(st, i, c, SIZE-1);
+      set_item(st, i, c, SIZE-i);
   }
 
   if (cU == 1)
@@ -409,8 +449,7 @@ void solve_edge_col(state_t *st,
 ///////////////////////////////////////////////////////
 
 void solve_edge(state_t* st) {
-  int32_t qi;
-  for (qi = 0; qi < SIZE; ++qi) {
+  for (int32_t qi = 0; qi < SIZE; ++qi) {
     solve_edge_row(st, qi);
     solve_edge_col(st, qi);
   }
@@ -418,8 +457,7 @@ void solve_edge(state_t* st) {
 ///////////////////////////////////////////////////////
 
 //this will skip not 0 items.
-bool
-solve_cleared(state_t *st,
+bool solve_cleared(state_t *st,
                    int32_t ri,
                    int32_t ci,
                    int32_t it) {
@@ -432,28 +470,29 @@ solve_cleared(state_t *st,
 
   if (ri == SIZE)
     return state_is_final(st);
-  if (it == SIZE+1)
+  if (it == 0)
     return false;
   if (st->m_mtx[r][c])
-    return solve_cleared(st, ri, ci+1, 1);
+    return solve_cleared(st, ri, ci+1, SIZE);
 
   do {
     if (!set_item(st, r, c, it))
       break;
     if (!check_clues(st, r, c))
       break;
-    if (solve_cleared(st, ri, ci+1, 1))
+    if (solve_cleared(st, ri, ci+1, SIZE))
       return true;
   } while(0);
 
   clear_item(st, r, c);
-  return solve_cleared(st, ri, ci, it+1);
+  return solve_cleared(st, ri, ci, it-1);
 }
 ///////////////////////////////////////////////////////
 
 static bool solve_smart(state_t *st) {
   solve_edge(st);
-  return solve_cleared(st, 0, 0, 1);
+  print_state(st);
+  return solve_cleared(st, 0, 0, SIZE);
 }
 ///////////////////////////////////////////////////////
 
@@ -466,6 +505,7 @@ int32_t **SolvePuzzle(const int32_t *clues) {
     result[r] = malloc(SIZE * sizeof(int32_t));
 
   init_clues(&st, clues);
+  print_state(&st);
   solved = solve_smart(&st);
   if (solved) {
     print_state(&st);
