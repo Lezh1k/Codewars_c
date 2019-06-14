@@ -10,11 +10,15 @@ int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  pol_t p = pol_from_str("-1234567812345678");
-  for (uint32_t i = 0; i < p.len; ++i)
-    printf("%08u\n", p.data[i]);
+  pol_t a = pol_from_str("9999");
+  pol_t b = pol_from_str("2");
+  pol_t c = pol_mul(&a, &b);
 
-  char *pstr = pol_to_str(&p);
+  char *pstr = pol_to_str(&c);
   printf("%s\n", pstr);
   free(pstr);
+
+  pol_free(&a);
+  pol_free(&b);
+  pol_free(&c);
 }

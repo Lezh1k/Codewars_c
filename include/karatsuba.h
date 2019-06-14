@@ -25,9 +25,9 @@ typedef int32_t pol_limb_t;
 #define POL_BASE_DIGITS 8
 #define POL_LIMB_FORMAT "%08u"
 
-//#define POL_BASE 10
-//#define POL_BASE_DIGITS 1
-//#define POL_LIMB_FORMAT "%01u"
+//#define POL_BASE 100
+//#define POL_BASE_DIGITS 2
+//#define POL_LIMB_FORMAT "%02u"
 
 typedef struct pol {
   pol_limb_t *data;
@@ -45,7 +45,20 @@ void pol_free(pol_t *p);
 pol_t pol_from_str(const char *str);
 char *pol_to_str(const pol_t* p);
 
+pol_t pol_inv(const pol_t *p);
+pol_t pol_abs(const pol_t *p);
+
+///
+/// \brief pol_cmp - compares two polinomes
+/// \param l - left one
+/// \param r - right one
+/// \return res > 0 if l > r, res < 0 if l < r and res == 0 if l == r
+///
+int pol_cmp(const pol_t *l, const pol_t *r);
+
 pol_t pol_sum(const pol_t *l, const pol_t *r);
 pol_t pol_sub(const pol_t *l, const pol_t *r);
+pol_t pol_mul(const pol_t *l, const pol_t *r);
+pol_t pol_mul_karatsuba(const pol_t *l, const pol_t *r);
 
 #endif // KARATSUBA_H
