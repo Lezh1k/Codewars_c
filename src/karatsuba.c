@@ -15,6 +15,8 @@ typedef struct pol_pairc {
 static uint32_t str2ui(const char *str, uint32_t len);
 static uint32_t powi(uint32_t base, uint32_t exp);
 static pol_pairc_t pol_sum_pairc(const pol_t *l, const pol_t *r);
+static void pol_increase_len(pol_t *p, uint32_t l);
+static pol_t pol_part(const pol_t *src, uint32_t start, uint32_t len);
 
 //remove leading zeros
 static void pol_trim(pol_t *p);
@@ -114,18 +116,22 @@ char *pol_to_str(const pol_t *p) {
     return rbuff;
   }
 
-  rbuff = malloc(p->len * POL_BASE_DIGITS + 2); //for \0 at the end of string and sign
+  rbuff = calloc(1, p->len * POL_BASE_DIGITS + 2);
   result = rbuff;
   if (p->sign == pols_neg)
     *rbuff++ = '-';
+  *rbuff = '0';
 
-  pol_limb_t *ptr = &p->data[p->len-1];
-  int offset = 0;
+  pol_limb_t *ptr = (pol_limb_t*) &p->data[p->len-1];
 
-  if (*ptr)
-    offset = sprintf(rbuff, "%u", *ptr);
-  --ptr;
+  //don't print front zeros
+  while (ptr >= p->data && *ptr == 0)
+    --ptr;
 
+  if (ptr < p->data)
+    return result;
+
+  int offset = sprintf(rbuff, "%u", *ptr--);
   while (ptr >= p->data) {
     rbuff += offset;
     offset = sprintf(rbuff, POL_LIMB_FORMAT, *ptr--);
@@ -251,7 +257,159 @@ pol_t pol_mul(const pol_t *l, const pol_t *r) {
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_mul_karatsuba(const pol_t *l, const pol_t *r) {
-  return pol_new(0, l->sign*r->sign);
+static uint32_t nearest2pow(uint32_t v) {
+  --v;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  return ++v;
+}
+//////////////////////////////////////////////////////////////////////////
+
+void pol_increase_len(pol_t *p, uint32_t l) {
+  assert(p->len <= l);
+  if (p->len == l) return;
+  pol_limb_t *tmp = malloc(l * sizeof(pol_limb_t));
+  memcpy(tmp, p->data, p->len*sizeof(pol_limb_t));
+  memset(&tmp[p->len], 0, (l - p->len)*sizeof(pol_limb_t));
+  free(p->data);
+  p->data = tmp;
+  p->len = l;
 }
 ///////////////////////////////////////////////////////
+
+void pol_karatsuba_prepare(pol_t *l, pol_t *r) {
+  uint32_t ml = l->len > r->len ? l->len : r->len;
+  ml = nearest2pow(ml);
+  if (l->len != ml)
+    pol_increase_len(l, ml);
+  if (r->len != ml)
+    pol_increase_len(r, ml);
+}
+///////////////////////////////////////////////////////
+
+pol_t pol_part(const pol_t *src, uint32_t start, uint32_t len) {
+  pol_t res = pol_new(len, src->sign);
+  memcpy(res.data, &src->data[start], len * sizeof (pol_limb_t));
+  return res;
+}
+///////////////////////////////////////////////////////
+
+/*
+ * Karatsuba_mul(X, Y):
+    // X, Y - целые числа длины n
+    n = max(размер X, размер Y)
+    если n = 1: вернуть X * Y
+    X_l = левые n/2 цифр X
+    X_r = правые n/2 цифр X
+    Y_l = левые n/2 цифр Y
+    Y_r = правые n/2 цифр Y
+    Prod1 = Karatsuba_mul(X_l, Y_l)
+    Prod2 = Karatsuba_mul(X_r, Y_r)
+    Prod3 = Karatsuba_mul(X_l + X_r, Y_l + Y_r)
+    return Prod1 * base ^ n + (Prod3 - Prod1 - Prod2) * base ^ (n / 2) + Prod2
+*/
+
+static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
+  uint32_t n = l->len;
+  if (n == 1) {
+    pol_t res = pol_new(2, l->sign * r->sign);
+    int64_t cur = (int64_t)l->data[0] * (int64_t)(r->data[0]);
+    res.data[0] = (int32_t)(cur % POL_BASE);
+    res.data[1] = (int32_t) (cur / POL_BASE);
+    pol_trim(&res);
+    return res;
+  }
+
+  pol_t res = pol_new(n+n, l->sign*r->sign);
+  uint32_t k = n >> 1;
+
+  pol_t xr = pol_part(l, 0, k);
+  pol_t xl = pol_part(l, k, k);
+  pol_t yr = pol_part(r, 0, k);
+  pol_t yl = pol_part(r, k, k);
+
+  pol_t p1 = pol_mul_karatsuba_int(&xl, &yl);
+  pol_t p2 = pol_mul_karatsuba_int(&xr, &yr);
+
+  for (uint32_t i = 0; i < k; ++i) {
+    xl.data[i] += xr.data[i];
+    yl.data[i] += yr.data[i];
+  }
+
+  pol_t p3 = pol_mul_karatsuba_int(&xl, &yl);
+
+  //p3 - p1 - p2
+  for (uint32_t i = 0; i < p1.len; ++i)
+    p3.data[i] -= p1.data[i];
+  for (uint32_t i = 0; i < p2.len; ++i)
+    p3.data[i] -= p2.data[i];
+  //
+
+  //res = p1 * base^n + (p3-p1-p2) * base^k + p2
+
+  //(p3-p1-p2) * base^k
+  for (uint32_t i = 0; i < p3.len; ++i)
+    res.data[i+k] += p3.data[i];
+
+  //p1 * base^n
+  for (uint32_t i = 0; i < p1.len; ++i)
+    res.data[i+n] += p1.data[i];
+
+  //p2
+  for (uint32_t i = 0; i < p2.len; ++i)
+    res.data[i] += p2.data[i];
+
+
+  //HACK!
+  int32_t carry = 0;
+  for (uint32_t i = 0; i < res.len; ++i) {
+    res.data[i] = res.data[i] - carry;
+    carry = res.data[i] < 0;
+    if (carry)
+      res.data[i] += POL_BASE;
+  }
+
+  pol_free(&xl);
+  pol_free(&xr);
+  pol_free(&yl);
+  pol_free(&yr);
+  pol_free(&p1);
+  pol_free(&p2);
+  pol_free(&p3);
+  return res;
+}
+///////////////////////////////////////////////////////
+
+pol_t pol_mul_karatsuba(pol_t *l, pol_t *r) {
+  pol_karatsuba_prepare(l, r);
+  pol_t tmp = pol_mul_karatsuba_int(l, r);
+  pol_t res = pol_new(l->len + r->len, l->sign * r->sign);
+  pol_limb_t carry = 0;
+
+  for (uint32_t i = 0; i < tmp.len; ++i) {
+    int64_t cur = (int64_t) (tmp.data[i] + carry);
+    res.data[i] = cur % POL_BASE;
+    carry = (pol_limb_t) (cur / POL_BASE);
+  }
+  pol_trim(&res);
+
+  pol_free(&tmp);
+  return res;
+}
+///////////////////////////////////////////////////////
+
+void pol_print_raw(const pol_t *p) {
+  for (int i = 0; i < p->len; ++i)
+    printf("%d ", p->data[i]);
+  printf("\n");
+}
+///////////////////////////////////////////////////////
+
+void pol_print(const pol_t *p, const char *descr) {
+  char *s = pol_to_str(p);
+  printf("%s: %s\n", descr, s);
+  free(s);
+}
