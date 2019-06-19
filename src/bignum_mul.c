@@ -40,7 +40,7 @@ typedef struct iVec {
   int8_t padding[4];
 } iVec_t;
 
-static uint32_t nearest2pow(uint32_t v);
+static uint32_t nearest_power_of_2(uint32_t v);
 static uint32_t logOfPower2(uint32_t v);
 
 static void vecPrint(const iVec_t *vec);
@@ -190,7 +190,7 @@ First it is necessary to double the degrees of each polynomial (again, supplemen
 */
 
 
-uint32_t nearest2pow(uint32_t v) {
+uint32_t nearest_power_of_2(uint32_t v) {
   --v;
   v |= v >> 1;
   v |= v >> 2;
@@ -226,7 +226,7 @@ iVec_t vecFromStr(const char *str) {
   iVec_t res;
   int i, sl;
   sl = strlen(str);
-  res.len = nearest2pow(sl+1)*2;
+  res.len = nearest_power_of_2(sl+1)*2;
   res.data = malloc(res.len * sizeof(complex_t));
   memset(res.data, 0, res.len * sizeof(complex_t));
 

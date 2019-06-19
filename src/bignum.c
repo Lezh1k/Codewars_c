@@ -7,29 +7,21 @@
 #include <ctype.h>
 #include "bignum.h"
 
-typedef struct pol_pairc {
-  const pol_t *big;
-  const pol_t *small;
-} pol_pairc_t;
+typedef struct bn_pairc {
+  const bn_t *big;
+  const bn_t *small;
+} bn_pairc_t;
 
 static uint32_t str2ui(const char *str, uint32_t len);
 static uint32_t powi(uint32_t base, uint32_t exp);
-static pol_pairc_t pol_sum_pairc(const pol_t *l, const pol_t *r);
-static void pol_increase_len(pol_t *p, uint32_t l);
-static pol_t pol_part(const pol_t *src, uint32_t start, uint32_t len);
+static uint32_t nearest_power_of_2(uint32_t v);
 
-//remove leading zeros
-static void pol_trim(pol_t *p);
+static void bn_increase_len(bn_t *p, uint32_t l);
+static bn_t bn_part(const bn_t *src, uint32_t start, uint32_t len);
+static void bn_karatsuba_prepare(bn_t *l, bn_t *r);
+static bn_t bn_mul_karatsuba_internal(bn_t *l, bn_t *r);
+static void bn_trim(bn_t *p);//remove leading zeros
 
-pol_pairc_t pol_sum_pairc(const pol_t *l, const pol_t *r) {
-  pol_pairc_t p = {.big = l, .small = r};
-  if (l->len < r->len) {
-    p.big = r;
-    p.small = l;
-  }
-  return p;
-}
-///////////////////////////////////////////////////////
 
 uint32_t powi(uint32_t base, uint32_t exp) {
   uint32_t res = 1;
@@ -52,28 +44,28 @@ uint32_t str2ui(const char *str, uint32_t len) {
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_new(uint32_t len, pol_sign_t sign) {
-  pol_t p = {.len = len, .sign = (int8_t)sign, .data = NULL};
+bn_t bn_new(uint32_t len, bn_sign_t sign) {
+  bn_t p = {.len = len, .sign = (int8_t)sign, .data = NULL};
   if (len) {
-    p.data = calloc(p.len, sizeof(pol_limb_t));
+    p.data = calloc(p.len, sizeof(bn_word_t));
     assert(p.data);
   }
   return p;
 }
 ///////////////////////////////////////////////////////
 
-void pol_free(pol_t *p) {
+void bn_free(bn_t *p) {
   if (p->data)
     free(p->data);
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_from_str(const char *str) {  
+bn_t bn_from_str(const char *str) {
   uint8_t c = (uint8_t) *str;
   while (isspace(c))
     c = (uint8_t) *++str;
   if (!c)
-    return pol_new(0, pols_pos);
+    return bn_new(0, bns_pos);
 
   int8_t sign = 1;
   if (*str == '+')
@@ -85,29 +77,29 @@ pol_t pol_from_str(const char *str) {
 
   while (*str == '0') ++str;
   if (!*str)
-    return pol_new(0, pols_pos);
+    return bn_new(0, bns_pos);
 
-  div_t d = div((int)strlen(str), POL_BASE_DIGITS);
+  div_t d = div((int)strlen(str), BN_BASE_DIGITS);
   int lcnt = d.quot + (d.rem ? 1 : 0);
   int fll = d.rem;
 
-  pol_t r = pol_new((uint32_t)lcnt, sign);
-  pol_limb_t *ptr = &r.data[lcnt-1];
+  bn_t r = bn_new((uint32_t)lcnt, sign);
+  bn_word_t *ptr = &r.data[lcnt-1];
 
   if (fll) {
-    *ptr-- = (pol_limb_t) str2ui(str, (uint32_t)fll);
+    *ptr-- = (bn_word_t) str2ui(str, (uint32_t)fll);
     str += fll;
   }
 
   while (ptr >= r.data) {
-    *ptr-- = (pol_limb_t) str2ui(str, POL_BASE_DIGITS);
-    str += POL_BASE_DIGITS;
+    *ptr-- = (bn_word_t) str2ui(str, BN_BASE_DIGITS);
+    str += BN_BASE_DIGITS;
   }
   return r;
 }
 ///////////////////////////////////////////////////////
 
-char *pol_to_str(const pol_t *p) {
+char *bn_to_str(const bn_t *p) {
   char *rbuff, *result;
   if (!p->len) {
     rbuff = malloc(2);
@@ -116,15 +108,15 @@ char *pol_to_str(const pol_t *p) {
     return rbuff;
   }
 
-  rbuff = calloc(1, p->len * POL_BASE_DIGITS + 2);
+  rbuff = calloc(1, p->len * BN_BASE_DIGITS + 2);
   result = rbuff;
-  if (p->sign == pols_neg)
+  if (p->sign == bns_neg)
     *rbuff++ = '-';
   *rbuff = '0';
 
-  pol_limb_t *ptr = (pol_limb_t*) &p->data[p->len-1];
+  bn_word_t *ptr = (bn_word_t*) &p->data[p->len-1];
 
-  //don't print front zeros
+  //don't print heading zeros
   while (ptr >= p->data && *ptr == 0)
     --ptr;
 
@@ -134,94 +126,99 @@ char *pol_to_str(const pol_t *p) {
   int offset = sprintf(rbuff, "%u", *ptr--);
   while (ptr >= p->data) {
     rbuff += offset;
-    offset = sprintf(rbuff, POL_LIMB_FORMAT, *ptr--);
+    offset = sprintf(rbuff, BN_WORD_FORMAT, *ptr--);
   }
   return result;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_sum(const pol_t *l,
-              const pol_t *r) {
+bn_t bn_sum(const bn_t *l,
+            const bn_t *r) {
+  const bn_t *big, *small;
+  big = l; small = r;
+  if (r->len > l->len) {
+    big = r; small = l;
+  }
+
   if (l->sign != r->sign) {
-    pol_t ir = pol_inv(r);
-    return pol_sub(l, &ir);
+    bn_t ir = bn_inv(r);
+    return bn_sub(l, &ir);
   }
 
-  pol_pairc_t pair = pol_sum_pairc(l, r);
-  pol_t res = pol_new(pair.big->len + 1, pair.big->sign);
-  pol_limb_t carry = 0;
+  bn_t res = bn_new(big->len + 1, big->sign);
+  bn_word_t carry = 0;
   uint32_t i;
-  for (i = 0; i < pair.small->len; ++i) {
-    res.data[i] = pair.big->data[i] + pair.small->data[i] + carry;
-    carry = res.data[i] >= POL_BASE;
+  for (i = 0; i < small->len; ++i) {
+    res.data[i] = big->data[i] + small->data[i] + carry;
+    carry = res.data[i] >= BN_BASE;
     if (carry)
-      res.data[i] -= POL_BASE;
+      res.data[i] -= BN_BASE;
   }
 
-  for (; i < pair.big->len; ++i) {
-    res.data[i] = pair.big->data[i] + carry;
-    carry = res.data[i] >= POL_BASE;
+  for (; i < big->len; ++i) {
+    res.data[i] = big->data[i] + carry;
+    carry = res.data[i] >= BN_BASE;
     if (carry)
-      res.data[i] -= POL_BASE;
+      res.data[i] -= BN_BASE;
   }
+
   if (carry)
     res.data[i++] = carry;
   res.len = i;
-
   return res;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_sub(const pol_t *l,
-              const pol_t *r) {
+bn_t bn_sub(const bn_t *l,
+            const bn_t *r) {
   if (l->sign != r->sign) {
-    pol_t ir = pol_inv(r);
-    return pol_sum(l, &ir);
+    bn_t ir = bn_inv(r);
+    return bn_sum(l, &ir);
   }
 
-  pol_t la, ra;
-  la = pol_abs(l);
-  ra = pol_abs(r);
-  if (pol_cmp(&la, &ra) < 0) {
-    pol_t tmp = pol_sub(r, l);
-    return pol_inv(&tmp);
+  bn_t la, ra;
+  la = bn_abs(l);
+  ra = bn_abs(r);
+  if (bn_cmp(&la, &ra) < 0) {
+    bn_t tmp = bn_sub(r, l);
+    return bn_inv(&tmp);
   }
 
-  pol_t res = pol_new(l->len, l->sign);
-  pol_limb_t carry = 0;
+  bn_t res = bn_new(l->len, l->sign);
+  bn_word_t carry = 0;
   uint32_t i;
   for (i = 0; i < r->len; ++i) {
     res.data[i] = l->data[i] - r->data[i] - carry;
     carry = res.data[i] < 0;
     if (carry)
-      res.data[i] += POL_BASE;
+      res.data[i] += BN_BASE;
   }
 
   for (; i < l->len; ++i) {
     res.data[i] = l->data[i] - carry;
     carry = res.data[i] < 0;
     if (carry)
-      res.data[i] += POL_BASE;
+      res.data[i] += BN_BASE;
   }
-  pol_trim(&res);
+  bn_trim(&res);
   return res;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_inv(const pol_t *p) {
-  pol_t r = {.data = p->data, .len = p->len, .sign = -p->sign};
+bn_t bn_inv(const bn_t *p) {
+  bn_t r = {.data = p->data, .len = p->len, .sign = -p->sign};
   return r;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_abs(const pol_t *p) {
-  pol_t r = {.data = p->data, .len = p->len, .sign = pols_pos};
+bn_t bn_abs(const bn_t *p) {
+  bn_t r = {.data = p->data, .len = p->len, .sign = bns_pos};
   return r;
 }
 ///////////////////////////////////////////////////////
 
-int pol_cmp(const pol_t *l,
-            const pol_t *r) {
+int bn_cmp(const bn_t *l,
+           const bn_t *r) {
   if (l->sign != r->sign)
     return l->sign - r->sign;
   if (l->len != r->len)
@@ -234,30 +231,30 @@ int pol_cmp(const pol_t *l,
 }
 ///////////////////////////////////////////////////////
 
-void pol_trim(pol_t *p) {
+void bn_trim(bn_t *p) {
   while (p->len && !p->data[p->len-1])
     --p->len;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_mul(const pol_t *l, const pol_t *r) {
+bn_t bn_mul_naive(const bn_t *l, const bn_t *r) {
   uint32_t rn = l->len + r->len;
-  pol_t res = pol_new(rn, l->sign * r->sign);
-  pol_limb_t carry = 0;
+  bn_t res = bn_new(rn, l->sign * r->sign);
+  bn_word_t carry = 0;
   for (uint32_t i=0; i < l->len; ++i) {
     for (uint32_t j=0; j < r->len || carry; ++j) {
-      pol_dlimb_t cur = res.data[i+j] + (pol_dlimb_t)l->data[i] * (j < r->len ? r->data[j] : 0) + carry;
-      res.data[i+j] = (pol_limb_t)(cur % POL_BASE);
-      carry = (pol_limb_t) (cur / POL_BASE);
+      bn_dword_t cur = res.data[i+j] + (bn_dword_t)l->data[i] * (j < r->len ? r->data[j] : 0) + carry;
+      res.data[i+j] = (bn_word_t)(cur % BN_BASE);
+      carry = (bn_word_t) (cur / BN_BASE);
     }
   }
 
-  pol_trim(&res);
+  bn_trim(&res);
   return res;
 }
 ///////////////////////////////////////////////////////
 
-static uint32_t nearest2pow(uint32_t v) {
+uint32_t nearest_power_of_2(uint32_t v) {
   --v;
   v |= v >> 1;
   v |= v >> 2;
@@ -268,31 +265,31 @@ static uint32_t nearest2pow(uint32_t v) {
 }
 //////////////////////////////////////////////////////////////////////////
 
-void pol_increase_len(pol_t *p, uint32_t l) {
+void bn_increase_len(bn_t *p, uint32_t l) {
   assert(p->len <= l);
   if (p->len == l) return;
-  pol_limb_t *tmp = malloc(l * sizeof(pol_limb_t));
-  memcpy(tmp, p->data, p->len*sizeof(pol_limb_t));
-  memset(&tmp[p->len], 0, (l - p->len)*sizeof(pol_limb_t));
+  bn_word_t *tmp = malloc(l * sizeof(bn_word_t));
+  memcpy(tmp, p->data, p->len*sizeof(bn_word_t));
+  memset(&tmp[p->len], 0, (l - p->len)*sizeof(bn_word_t));
   free(p->data);
   p->data = tmp;
   p->len = l;
 }
 ///////////////////////////////////////////////////////
 
-void pol_karatsuba_prepare(pol_t *l, pol_t *r) {
+void bn_karatsuba_prepare(bn_t *l, bn_t *r) {
   uint32_t ml = l->len > r->len ? l->len : r->len;
-  ml = nearest2pow(ml);
+  ml = nearest_power_of_2(ml);
   if (l->len != ml)
-    pol_increase_len(l, ml);
+    bn_increase_len(l, ml);
   if (r->len != ml)
-    pol_increase_len(r, ml);
+    bn_increase_len(r, ml);
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_part(const pol_t *src, uint32_t start, uint32_t len) {
-  pol_t res = pol_new(len, src->sign);
-  memcpy(res.data, &src->data[start], len * sizeof (pol_limb_t));
+bn_t bn_part(const bn_t *src, uint32_t start, uint32_t len) {
+  bn_t res = bn_new(len, src->sign);
+  memcpy(res.data, &src->data[start], len * sizeof (bn_word_t));
   return res;
 }
 ///////////////////////////////////////////////////////
@@ -312,34 +309,35 @@ pol_t pol_part(const pol_t *src, uint32_t start, uint32_t len) {
     return Prod1 * base ^ n + (Prod3 - Prod1 - Prod2) * base ^ (n / 2) + Prod2
 */
 
-static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
+bn_t bn_mul_karatsuba_internal(bn_t *l,
+                               bn_t *r) {
   uint32_t n = l->len;
   if (n == 1) {
-    pol_t res = pol_new(2, l->sign * r->sign);
-    pol_dlimb_t cur = (pol_dlimb_t)l->data[0] * (pol_dlimb_t)(r->data[0]);
-    res.data[0] = (pol_limb_t)(cur % POL_BASE);
-    res.data[1] = (pol_limb_t)(cur / POL_BASE);
-    pol_trim(&res);
+    bn_t res = bn_new(2, l->sign * r->sign);
+    bn_dword_t cur = (bn_dword_t)l->data[0] * (bn_dword_t)(r->data[0]);
+    res.data[0] = (bn_word_t)(cur % BN_BASE);
+    res.data[1] = (bn_word_t)(cur / BN_BASE);
+    bn_trim(&res);
     return res;
   }
 
-  pol_t res = pol_new(n+n, l->sign*r->sign);
+  bn_t res = bn_new(n+n, l->sign*r->sign);
   uint32_t k = n >> 1;
 
-  pol_t xr = pol_part(l, 0, k);
-  pol_t xl = pol_part(l, k, k);
-  pol_t yr = pol_part(r, 0, k);
-  pol_t yl = pol_part(r, k, k);
+  bn_t xr = bn_part(l, 0, k);
+  bn_t xl = bn_part(l, k, k);
+  bn_t yr = bn_part(r, 0, k);
+  bn_t yl = bn_part(r, k, k);
 
-  pol_t p1 = pol_mul_karatsuba_int(&xl, &yl);
-  pol_t p2 = pol_mul_karatsuba_int(&xr, &yr);
+  bn_t p1 = bn_mul_karatsuba_internal(&xl, &yl);
+  bn_t p2 = bn_mul_karatsuba_internal(&xr, &yr);
 
   for (uint32_t i = 0; i < k; ++i) {
     xl.data[i] += xr.data[i];
     yl.data[i] += yr.data[i];
   }
 
-  pol_t p3 = pol_mul_karatsuba_int(&xl, &yl);
+  bn_t p3 = bn_mul_karatsuba_internal(&xl, &yl);
 
   //p3 - p1 - p2
   for (uint32_t i = 0; i < p1.len; ++i)
@@ -362,53 +360,56 @@ static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
     res.data[i] += p2.data[i];
 
 
-  //normalization of negative values
-  pol_limb_t carry = 0;
+  //normalization of negative values. kind of hack here :)
+  bn_word_t carry = 0;
   for (uint32_t i = 0; i < res.len; ++i) {
     res.data[i] = res.data[i] - carry;
     carry = 0;
     while (res.data[i] < 0) {
       ++carry;
-      res.data[i] += POL_BASE;
+      res.data[i] += BN_BASE;
     }
   }
 
-  pol_free(&xl);
-  pol_free(&xr);
-  pol_free(&yl);
-  pol_free(&yr);
-  pol_free(&p1);
-  pol_free(&p2);
-  pol_free(&p3);
+  //don't forget about memory. seems like it's possible
+  //to optimize this part and use pointers to temp. results.
+  bn_free(&xl);
+  bn_free(&xr);
+  bn_free(&yl);
+  bn_free(&yr);
+  bn_free(&p1);
+  bn_free(&p2);
+  bn_free(&p3);
+
   return res;
 }
 ///////////////////////////////////////////////////////
 
-pol_t pol_mul_karatsuba(pol_t *l, pol_t *r) {
-  pol_karatsuba_prepare(l, r);
-  pol_t tmp = pol_mul_karatsuba_int(l, r);
-  pol_t res = pol_new(l->len + r->len, l->sign * r->sign);
-  pol_limb_t carry = 0;
+bn_t bn_mul_karatsuba(bn_t *l, bn_t *r) {
+  bn_karatsuba_prepare(l, r);
+  bn_t tmp = bn_mul_karatsuba_internal(l, r);
+  bn_t res = bn_new(l->len + r->len, l->sign * r->sign);
+  bn_word_t carry = 0;
   for (uint32_t i = 0; i < tmp.len; ++i) {
-    pol_dlimb_t cur = (pol_dlimb_t) (tmp.data[i] + carry);
-    res.data[i] = cur % POL_BASE;
-    carry = (pol_limb_t) (cur / POL_BASE);
+    bn_dword_t cur = (bn_dword_t) (tmp.data[i] + carry);
+    res.data[i] = cur % BN_BASE;
+    carry = (bn_word_t) (cur / BN_BASE);
   }
-  pol_trim(&res);
-  pol_free(&tmp);
+  bn_trim(&res);
+  bn_free(&tmp);
   return res;
 }
 ///////////////////////////////////////////////////////
 
-void pol_print_raw(const pol_t *p) {
+void bn_print_raw(const bn_t *p) {
   for (uint32_t i = 0; i < p->len; ++i)
     printf("%d ", p->data[i]);
   printf("\n");
 }
 ///////////////////////////////////////////////////////
 
-void pol_print(const pol_t *p, const char *descr) {
-  char *s = pol_to_str(p);
+void bn_print(const bn_t *p, const char *descr) {
+  char *s = bn_to_str(p);
   printf("%s: %s\n", descr, s);
   free(s);
 }
