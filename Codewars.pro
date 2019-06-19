@@ -10,6 +10,7 @@ QMAKE_CFLAGS += -msse4.2
 LIBS += -lgmp
 
 SOURCES += \
+    src/bignum.c \
     src/main.c \
     src/brainfuck.c \
     src/search_string.c \
@@ -18,12 +19,12 @@ SOURCES += \
     src/ascii85.c \
     src/bignum_mul.c \
     src/pointer_monster.c \
-    src/karatsuba.c \
     src/commons.c \
     src/mul.s \
     src/skyscapers.c
 
 HEADERS += \
+    include/bignum.h \
     include/brainfuck.h \
     include/search_string.h \
     include/roman.h \
@@ -31,6 +32,5 @@ HEADERS += \
     include/ascii85.h \
     include/bignum_mul.h \
     include/pointer_monster.h \
-    include/karatsuba.h \
     include/commons.h \
     include/skyscapers.h

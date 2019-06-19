@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include "karatsuba.h"
+#include "bignum.h"
 
 typedef struct pol_pairc {
   const pol_t *big;
@@ -243,12 +243,12 @@ void pol_trim(pol_t *p) {
 pol_t pol_mul(const pol_t *l, const pol_t *r) {
   uint32_t rn = l->len + r->len;
   pol_t res = pol_new(rn, l->sign * r->sign);
-  int32_t carry = 0;
+  pol_limb_t carry = 0;
   for (uint32_t i=0; i < l->len; ++i) {
     for (uint32_t j=0; j < r->len || carry; ++j) {
-      int64_t cur = res.data[i+j] + (int64_t)l->data[i] * (j < r->len ? r->data[j] : 0) + carry;
-      res.data[i+j] = (int32_t)(cur % POL_BASE);
-      carry = (int32_t) (cur / POL_BASE);
+      pol_dlimb_t cur = res.data[i+j] + (pol_dlimb_t)l->data[i] * (j < r->len ? r->data[j] : 0) + carry;
+      res.data[i+j] = (pol_limb_t)(cur % POL_BASE);
+      carry = (pol_limb_t) (cur / POL_BASE);
     }
   }
 
@@ -316,9 +316,9 @@ static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
   uint32_t n = l->len;
   if (n == 1) {
     pol_t res = pol_new(2, l->sign * r->sign);
-    int64_t cur = (int64_t)l->data[0] * (int64_t)(r->data[0]);
-    res.data[0] = (int32_t)(cur % POL_BASE);
-    res.data[1] = (int32_t) (cur / POL_BASE);
+    pol_dlimb_t cur = (pol_dlimb_t)l->data[0] * (pol_dlimb_t)(r->data[0]);
+    res.data[0] = (pol_limb_t)(cur % POL_BASE);
+    res.data[1] = (pol_limb_t)(cur / POL_BASE);
     pol_trim(&res);
     return res;
   }
@@ -349,7 +349,6 @@ static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
   //
 
   //res = p1 * base^n + (p3-p1-p2) * base^k + p2
-
   //(p3-p1-p2) * base^k
   for (uint32_t i = 0; i < p3.len; ++i)
     res.data[i+k] += p3.data[i];
@@ -363,13 +362,15 @@ static pol_t pol_mul_karatsuba_int(pol_t *l, pol_t *r) {
     res.data[i] += p2.data[i];
 
 
-  //HACK!
-  int32_t carry = 0;
+  //normalization of negative values
+  pol_limb_t carry = 0;
   for (uint32_t i = 0; i < res.len; ++i) {
     res.data[i] = res.data[i] - carry;
-    carry = res.data[i] < 0;
-    if (carry)
+    carry = 0;
+    while (res.data[i] < 0) {
+      ++carry;
       res.data[i] += POL_BASE;
+    }
   }
 
   pol_free(&xl);
@@ -388,21 +389,19 @@ pol_t pol_mul_karatsuba(pol_t *l, pol_t *r) {
   pol_t tmp = pol_mul_karatsuba_int(l, r);
   pol_t res = pol_new(l->len + r->len, l->sign * r->sign);
   pol_limb_t carry = 0;
-
   for (uint32_t i = 0; i < tmp.len; ++i) {
-    int64_t cur = (int64_t) (tmp.data[i] + carry);
+    pol_dlimb_t cur = (pol_dlimb_t) (tmp.data[i] + carry);
     res.data[i] = cur % POL_BASE;
     carry = (pol_limb_t) (cur / POL_BASE);
   }
   pol_trim(&res);
-
   pol_free(&tmp);
   return res;
 }
 ///////////////////////////////////////////////////////
 
 void pol_print_raw(const pol_t *p) {
-  for (int i = 0; i < p->len; ++i)
+  for (uint32_t i = 0; i < p->len; ++i)
     printf("%d ", p->data[i]);
   printf("\n");
 }
@@ -413,3 +412,4 @@ void pol_print(const pol_t *p, const char *descr) {
   printf("%s: %s\n", descr, s);
   free(s);
 }
+///////////////////////////////////////////////////////
