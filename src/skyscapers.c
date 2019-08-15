@@ -489,9 +489,12 @@ bool solve_cleared(state_t *st,
 }
 ///////////////////////////////////////////////////////
 
+//It's not smart, there is wrong backtracking mechanism.
+//It brutforces all possible values from max to min value
+//instead of trying to set max, then max-1, then max-2 etc.
+//to whole field.
 static bool solve_smart(state_t *st) {
-  solve_edge(st);
-  print_state(st);
+  solve_edge(st);  
   return solve_cleared(st, 0, 0, SIZE);
 }
 ///////////////////////////////////////////////////////
@@ -505,7 +508,7 @@ int32_t **SolvePuzzle(const int32_t *clues) {
     result[r] = malloc(SIZE * sizeof(int32_t));
 
   init_clues(&st, clues);
-  print_state(&st);
+
   solved = solve_smart(&st);
   if (solved) {
     print_state(&st);

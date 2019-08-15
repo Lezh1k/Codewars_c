@@ -17,12 +17,12 @@ typedef struct node {
 typedef struct slist {
   node_t *root;
   uint32_t count;
-} slist_t;
+} lplist_t;
 ///////////////////////////////////////////////////////
 
-static slist_t slst_new() {
+static lplist_t slst_new() {
   node_t *root = malloc(sizeof(node_t));
-  slist_t lst ;
+  lplist_t lst ;
   root->next = NULL;
   lst.count = 0;
   lst.root = root;
@@ -30,7 +30,7 @@ static slist_t slst_new() {
 }
 ///////////////////////////////////////////////////////
 
-static node_t* slst_search_ins_place(slist_t *lst, int32_t val) {
+static node_t* slst_search_ins_place(lplist_t *lst, int32_t val) {
   node_t *rn = lst->root;
   for (; rn->next; rn=rn->next) {
     if (rn->next->val < val)
@@ -41,7 +41,7 @@ static node_t* slst_search_ins_place(slist_t *lst, int32_t val) {
 }
 ///////////////////////////////////////////////////////
 
-static void slst_push(slist_t *lst, int32_t it) {
+static void slst_push(lplist_t *lst, int32_t it) {
   node_t *ni;
   node_t *ip = slst_search_ins_place(lst, it);
   if (!ip)
@@ -60,7 +60,7 @@ static void slst_push(slist_t *lst, int32_t it) {
 }
 ///////////////////////////////////////////////////////
 
-static void slst_free(slist_t *lst) {
+static void slst_free(lplist_t *lst) {
   node_t *tmp = lst->root;
   while(tmp) {
     tmp = tmp->next;
@@ -70,7 +70,7 @@ static void slst_free(slist_t *lst) {
 }
 ///////////////////////////////////////////////////////
 
-static double slst_mean(slist_t *lst) {
+static double slst_mean(lplist_t *lst) {
   node_t *tmp = lst->root->next;
   int64_t sum = 0;
   while(tmp) {
@@ -81,7 +81,7 @@ static double slst_mean(slist_t *lst) {
 }
 ///////////////////////////////////////////////////////
 
-static double slst_median(slist_t *lst) {
+static double slst_median(lplist_t *lst) {
   double median = 0.0;
   int size1, size2, pos = 0;
   node_t *tmp = lst->root->next;
@@ -115,7 +115,7 @@ static void slst_print(slist_t *lst) {
 ///////////////////////////////////////////////////////
 #endif
 
-static void decompositions(int n, int k, int i, slist_t *lst);
+static void decompositions(int n, int k, int i, lplist_t *lst);
 static int64_t product_max(int64_t n);
 static int64_t powi(int64_t base, uint64_t exp);
 
@@ -127,7 +127,7 @@ char *part(int n) {
   char *buff = malloc(128);
   char *buff_it = buff;
   int64_t max;
-  slist_t lst = slst_new();
+  lplist_t lst = slst_new();
 
   memset(addends, 0, ADDENDS_COUNT * sizeof(int32_t));
   decompositions(n, n, 0, &lst);
@@ -168,7 +168,7 @@ int64_t powi (int64_t base, uint64_t exp) {
 }
 ///////////////////////////////////////////////////////
 
-void decompositions(int n, int k, int i, slist_t *lst) {
+void decompositions(int n, int k, int i, lplist_t *lst) {
   if ( n < 0 )
     return;
 

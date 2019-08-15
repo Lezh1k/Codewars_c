@@ -11,6 +11,7 @@ LIBS += -lgmp
 
 SOURCES += \
     src/bignum.c \
+    src/central_attention.c \
     src/main.c \
     src/brainfuck.c \
     src/search_string.c \
@@ -26,6 +27,7 @@ SOURCES += \
 HEADERS += \
     include/bignum.h \
     include/brainfuck.h \
+    include/central_attention.h \
     include/search_string.h \
     include/roman.h \
     include/int_partitions.h \

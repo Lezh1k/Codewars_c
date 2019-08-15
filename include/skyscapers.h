@@ -38,7 +38,8 @@ If no clue is available, add value `0`
 Each puzzle has only one possible solution
 `SolvePuzzle()` returns matrix `int[][]`. The first indexer is for the row, the second indexer for the column.
 */
+#include <stdint.h>
 
-int **SolvePuzzle(const int *clues);
+int32_t **SolvePuzzle(const int32_t *clues);
 
 #endif // SKYSCAPERS_H
