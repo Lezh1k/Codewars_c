@@ -5,59 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "skyscapers.h"
+#include "skyscrapers.h"
 
-/*
-#define  SIZE  6
-
-static int clues[][SIZE * 4] = {
-  { 3, 2, 2, 3, 2, 1,
-    1, 2, 3, 3, 2, 2,
-    5, 1, 2, 2, 4, 3,
-    3, 2, 1, 2, 2, 4 },
-  { 0, 0, 0, 2, 2, 0,
-    0, 0, 0, 6, 3, 0,
-    0, 4, 0, 0, 0, 0,
-    4, 4, 0, 3, 0, 0 },
-  { 4, 4, 0, 3, 0, 0,
-    0, 0, 0, 2, 2, 0,
-    0, 0, 0, 6, 3, 0,
-    0, 4, 0, 0, 0, 0 },
-};
-
-static int expected[][SIZE][SIZE] = {
-  { { 2, 1, 4, 3, 5, 6 },
-    { 1, 6, 3, 2, 4, 5 },
-    { 4, 3, 6, 5, 1, 2 },
-    { 6, 5, 2, 1, 3, 4 },
-    { 5, 4, 1, 6, 2, 3 },
-    { 3, 2, 5, 4, 6, 1 } },
-  { { 5, 6, 1, 4, 3, 2 },
-    { 4, 1, 3, 2, 6, 5 },
-    { 2, 3, 6, 1, 5, 4 },
-    { 6, 5, 4, 3, 2, 1 },
-    { 1, 2, 5, 6, 4, 3 },
-    { 3, 4, 2, 5, 1, 6 } }
-};
-
-int check(int **solution, int (*expected)[SIZE]) {
-  int result = 0;
-  if (solution && expected) {
-    result = 1;
-    for (int i = 0; i < SIZE; i++) {
-      if (memcmp(solution[i], expected[i], SIZE * sizeof(int))) {
-        result = 0;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
-///////////////////////////////////////////////////////*/
-
-#define SIZE 6
-#define FULL 0x3f
+#define SIZE 7
+#define FULL 0x7f
 
 typedef struct state {
   //main
@@ -65,6 +16,7 @@ typedef struct state {
   int32_t m_clues[SIZE*4];
 
   //aux
+  uint32_t m_possibilities[SIZE][SIZE];
   uint8_t m_col_mask[SIZE];
   uint8_t m_row_mask[SIZE];
 
@@ -99,30 +51,31 @@ typedef enum direction {
 ///////////////////////////////////////////////////////
 
 static state_t new_state(void);
-static void init_clues(state_t *st, const int *clues);
 
-static int row_n(const state_t *st, int32_t r, direction_t d);
-static int col_n(const state_t *st, int32_t c, direction_t d);
-static int row_n2(const state_t *st, int32_t r, direction_t d);
-static int col_n2(const state_t *st, int32_t c, direction_t d);
+static void init_clues(state_t *st, const int *clues);
+static void init_possibilities(state_t *st); //should be called AFTER init_clues method
+static uint32_t get_possibility(int clue, int distance);
+
+static int row_full_n(const state_t *st, int32_t r, direction_t d);
+static int col_full_n(const state_t *st, int32_t c, direction_t d);
+static int row_partial_n(const state_t *st, int32_t r, direction_t d);
+static int col_partial_n(const state_t *st, int32_t c, direction_t d);
 
 static bool set_item(state_t *st, int32_t r, int32_t c, int32_t it);
 static void clear_item(state_t *st, int32_t r, int32_t c);
 
 static bool state_is_final(const state_t *st);
-static bool check_clues(const state_t *st, int32_t r, int32_t c);
-
 static bool row_is_ok(const state_t *st, int32_t r);
 static bool col_is_ok(const state_t *st, int32_t c);
 
-static void solve_edge_row(state_t *st, int32_t r);
-static void solve_edge_col(state_t *st, int32_t c);
+static bool check_clues(const state_t *st, int32_t r, int32_t c);
 
-static void solve_edge(state_t* st);
+static int32_t next_val(state_t *st, int32_t ri, int32_t ci, int32_t cit);
+static bool solve(state_t *st, int32_t ri, int32_t ci, int32_t it);
 
-static bool solve_cleared(state_t *st, int32_t ri, int32_t ci, int32_t it);
 
 static void print_state(const state_t *st);
+static void print_possibilities(const state_t *st);
 
 state_t new_state() {
   int32_t r;
@@ -132,6 +85,47 @@ state_t new_state() {
   memset(st.m_col_mask, 0, sizeof (int32_t)*SIZE);
   memset(st.m_row_mask, 0, sizeof (int32_t)*SIZE);
   return st;
+}
+///////////////////////////////////////////////////////
+
+uint32_t get_possibility(int clue, int distance) {
+  //set 1 to all bits from 0 to SIZE
+  uint32_t possibility = (uint32_t) (~(0xffffffff << SIZE));
+
+  if (clue > distance + 1) {
+    possibility >>= (clue - distance - 1);
+  }
+
+  switch (clue) {
+    case 1:
+      if (distance) {
+        possibility &= (uint32_t) ~(0x01 << (SIZE - 1)); //set MSB to 0
+      } else {
+        possibility = 0x01 << (SIZE - 1); //set MSB to 1
+      }
+      break;
+
+    case SIZE:
+      possibility = 0x01 << distance;
+      break;
+
+    default:
+      break;
+  }
+
+  return possibility;
+}
+///////////////////////////////////////////////////////
+
+void init_possibilities(state_t *st) {
+  for (int y = 0; y < SIZE; ++y) {
+    for (int x = 0; x < SIZE; ++x) {
+      st->m_possibilities[y][x] =  get_possibility(st->m_clues[4 * SIZE - 1 - y], x); //left
+      st->m_possibilities[y][x] &= get_possibility(st->m_clues[SIZE + y], SIZE - 1 - x); //right
+      st->m_possibilities[y][x] &= get_possibility(st->m_clues[x], y); //top
+      st->m_possibilities[y][x] &= get_possibility(st->m_clues[3 * SIZE - 1 - x], SIZE - 1 - y); //bottom
+    }
+  }
 }
 ///////////////////////////////////////////////////////
 
@@ -165,9 +159,9 @@ void init_clues(state_t *st,
 static const int32_t dir_steps[4] = {-1, 1, -1, 1};
 static const int32_t dir_starts[4] = {SIZE-1, 0, SIZE-1, 0};
 
-int32_t row_n(const state_t *st,
-              int32_t r,
-              direction_t d) {
+int32_t row_full_n(const state_t *st,
+                   int32_t r,
+                   direction_t d) {
   assert(st);
   assert(r >= 0 && r < SIZE);
   assert(d == left || d == right);
@@ -186,9 +180,9 @@ int32_t row_n(const state_t *st,
 }
 ///////////////////////////////////////////////////////
 
-int32_t row_n2(const state_t *st,
-               int32_t r,
-               direction_t d) {
+int32_t row_partial_n(const state_t *st,
+                      int32_t r,
+                      direction_t d) {
   assert(st);
   assert(r >= 0 && r < SIZE);
   assert(d == left || d == right);
@@ -212,9 +206,9 @@ int32_t row_n2(const state_t *st,
 }
 ///////////////////////////////////////////////////////
 
-int32_t col_n(const state_t *st,
-              int32_t c,
-              direction_t d) {
+int32_t col_full_n(const state_t *st,
+                   int32_t c,
+                   direction_t d) {
   assert(st);
   assert(c >= 0 && c < SIZE);
   assert(d == up|| d == down);
@@ -233,9 +227,9 @@ int32_t col_n(const state_t *st,
 }
 ///////////////////////////////////////////////////////
 
-int32_t col_n2(const state_t *st,
-               int32_t c,
-               direction_t d) {
+int32_t col_partial_n(const state_t *st,
+                      int32_t c,
+                      direction_t d) {
   assert(st);
   assert(c >= 0 && c < SIZE);
   assert(d == up|| d == down);
@@ -296,12 +290,12 @@ bool row_is_ok(const state_t *st,
   int32_t q;
   //row l->r
   if ((q = st->m_clues[SIZE * 4 - r - 1])) {
-    if (row_n(st, r, right) != q)
+    if (row_full_n(st, r, right) != q)
       return false;
   }
   //row r->l
   if ((q = st->m_clues[SIZE + r])) {
-    if (row_n(st, r, left) != q)
+    if (row_full_n(st, r, left) != q)
       return false;
   }
   return true;
@@ -313,12 +307,12 @@ bool col_is_ok(const state_t *st,
   int32_t q;
   //col u->d
   if ((q = st->m_clues[c])) {
-    if (col_n(st, c, down) != q)
+    if (col_full_n(st, c, down) != q)
       return false;
   }
   //col d->u
   if ((q = st->m_clues[SIZE * 3 - c - 1])) {
-    if (col_n(st, c, up) != q)
+    if (col_full_n(st, c, up) != q)
       return false;
   }
   return true;
@@ -360,142 +354,133 @@ void print_state(const state_t *st) {
 }
 ///////////////////////////////////////////////////////
 
+void print_possibilities(const state_t *st) {
+  int32_t r, c, qi;
+  printf("\n");
+
+  for (qi = 0; qi < SIZE; ++qi)
+    printf("\t%d", st->m_clues[qi]);
+  printf("\n");
+
+  for (r = 0; r < SIZE; ++r) {
+    printf("%d", st->m_clues[SIZE*4 - 1 - r]);
+    for (c = 0; c < SIZE; ++c) {
+      printf("\t%02x", st->m_possibilities[r][c]);
+    }
+    printf("\t%d\n", st->m_clues[SIZE+r]);
+  }
+
+  for (qi = 0; qi < SIZE; ++qi)
+    printf("\t%d", st->m_clues[SIZE*3 - 1 - qi]);
+
+  printf("\n");
+}
+///////////////////////////////////////////////////////
+
 bool check_clues(const state_t *st, int32_t r, int32_t c) {
   int32_t clue, cnt;
 
   if (st->m_row_mask[r] == FULL) { //check full row
-    if ((clue = st->m_clues[SIZE*4 - 1 - r]) && (cnt = row_n(st, r, right)) != clue)
+    if ((clue = st->m_clues[SIZE*4 - 1 - r]) && (cnt = row_full_n(st, r, right)) != clue)
       return false;
-    if ((clue = st->m_clues[SIZE + r]) && (cnt = row_n(st, r, left)) != clue)
+    if ((clue = st->m_clues[SIZE + r]) && (cnt = row_full_n(st, r, left)) != clue)
       return false;
   } else { //check not full row
-    if ((clue = st->m_clues[SIZE*4 - 1 - r]) && (cnt = row_n2(st, r, right) > clue))
+    if ((clue = st->m_clues[SIZE*4 - 1 - r]) && (cnt = row_partial_n(st, r, right) > clue))
       return false;
-    if ((clue = st->m_clues[SIZE + r]) && (cnt = row_n2(st, r, left)) > clue)
+    if ((clue = st->m_clues[SIZE + r]) && (cnt = row_partial_n(st, r, left)) > clue)
       return false;
   }
 
   if (st->m_col_mask[c] == FULL) { //check full col
-    if ((clue = st->m_clues[c]) && (cnt = col_n(st, c, down)) != clue)
+    if ((clue = st->m_clues[c]) && (cnt = col_full_n(st, c, down)) != clue)
       return false;
-    if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_n(st, c, up)) != clue)
+    if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_full_n(st, c, up)) != clue)
       return false;
   } else { //check not full col
-    if ((clue = st->m_clues[c]) && (cnt = col_n2(st, c, down)) > clue)
+    if ((clue = st->m_clues[c]) && (cnt = col_partial_n(st, c, down)) > clue)
       return false;
-    if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_n2(st, c, up)) > clue)
+    if ((clue = st->m_clues[SIZE*3 - 1 - c]) && (cnt = col_partial_n(st, c, up)) > clue)
       return false;
   }
   return true;
 }
 ///////////////////////////////////////////////////////
 
-void solve_edge_row(state_t *st,
-                    int32_t r) {
-  assert(st);
-  assert(r >= 0 && r < SIZE);
-  int32_t cL, cR, i;
-  cL = st->m_clues[SIZE*4 - 1 - r];
-  cR = st->m_clues[SIZE + r];
+static uint32_t MSB_position(uint32_t v) {
+  static const int8_t LogTable256[256] =
+  {
+  #define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+    -1,
+    0,
+    1, 1,
+    2, 2, 2, 2,
+    3, 3, 3, 3, 3, 3, 3, 3,
+    LT(4),
+    LT(5), LT(5),
+    LT(6), LT(6), LT(6), LT(6),
+    LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
+  };
+  uint32_t r;     // r will be lg(v)
+  uint32_t t, tt; // temporaries
 
-  if (cL + cR == SIZE + 1) {
-    set_item(st, r, cL-1, SIZE);
+  if ((tt = v >> 16)) {
+    r = (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
+  } else {
+    r = (t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v];
   }
-
-  if (cL == SIZE) {
-    for (i = 0; i < SIZE; ++i)
-      set_item(st, r, i, i+1);
-  }
-
-  if (cR == SIZE) {
-    for (i = 0; i < SIZE; ++i)
-      set_item(st, r, i, SIZE-i);
-  }
-
-  if (cL == 1)
-    set_item(st, r, 0, SIZE);
-  if (cR == 1)
-    set_item(st, r, SIZE-1, SIZE);
+  return r;
 }
 ///////////////////////////////////////////////////////
 
-void solve_edge_col(state_t *st,
-                    int32_t c) {
-  assert(st);
-  assert(c >= 0 && c < SIZE);
-  int32_t cU, cD, i;
-  cU = st->m_clues[c];
-  cD = st->m_clues[SIZE*3 - 1 - c];
+int32_t next_val(state_t *st, int32_t ri, int32_t ci, int32_t cit) {
+  int r, c;
 
-  if (cU + cD == SIZE + 1) {
-    set_item(st, cU-1, c, SIZE);
+  if (ci == SIZE) {
+    ++ri; ci = 0;
   }
 
-  if (cU == SIZE) {
-    for (i = 0; i < SIZE; ++i)
-      set_item(st, i, c, i+1);
-  }
+  r = st->m_row_indexes[ri];
+  c = st->m_col_indexes[ci];
 
-  if (cD == SIZE) {
-    for (i = 0; i < SIZE; ++i)
-      set_item(st, i, c, SIZE-i);
+  uint32_t pos = st->m_possibilities[r][c];
+  if (cit) {
+    pos &= ~(0xffffffff << (cit-1));
   }
-
-  if (cU == 1)
-    set_item(st, 0, c, SIZE);
-  if (cD == 1)
-    set_item(st, SIZE-1, c, SIZE);
+  return MSB_position(pos) + 1;
 }
 ///////////////////////////////////////////////////////
 
-void solve_edge(state_t* st) {
-  for (int32_t qi = 0; qi < SIZE; ++qi) {
-    solve_edge_row(st, qi);
-    solve_edge_col(st, qi);
-  }
-}
-///////////////////////////////////////////////////////
-
-//this will skip not 0 items.
-bool solve_cleared(state_t *st,
-                   int32_t ri,
-                   int32_t ci,
-                   int32_t it) {
+bool solve(state_t *st,
+           int32_t ri,
+           int32_t ci,
+           int32_t it) {
   int32_t r, c;
   if (ci == SIZE) {
     ++ri; ci = 0;
   }
+
   r = st->m_row_indexes[ri];
   c = st->m_col_indexes[ci];
 
   if (ri == SIZE)
     return state_is_final(st);
+
   if (it == 0)
     return false;
-  if (st->m_mtx[r][c])
-    return solve_cleared(st, ri, ci+1, SIZE);
 
   do {
     if (!set_item(st, r, c, it))
       break;
     if (!check_clues(st, r, c))
       break;
-    if (solve_cleared(st, ri, ci+1, SIZE))
+    if (solve(st, ri, ci+1, next_val(st, ri, ci+1, 0)))
       return true;
   } while(0);
 
   clear_item(st, r, c);
-  return solve_cleared(st, ri, ci, it-1);
-}
-///////////////////////////////////////////////////////
-
-//It's not smart, there is wrong backtracking mechanism.
-//It brutforces all possible values from max to min value
-//instead of trying to set max, then max-1, then max-2 etc.
-//to whole field.
-static bool solve_smart(state_t *st) {
-  solve_edge(st);  
-  return solve_cleared(st, 0, 0, SIZE);
+  int nit = next_val(st, ri, ci, it);
+  return solve(st, ri, ci,  nit);
 }
 ///////////////////////////////////////////////////////
 
@@ -504,14 +489,14 @@ int32_t **SolvePuzzle(const int32_t *clues) {
   bool solved = false;
   state_t st = new_state();
   int32_t r;
+
   for (r = 0; r < SIZE; ++r)
     result[r] = malloc(SIZE * sizeof(int32_t));
 
   init_clues(&st, clues);
-
-  solved = solve_smart(&st);
+  init_possibilities(&st);
+  solved = solve(&st, 0, 0, next_val(&st, 0, 0, 0));
   if (solved) {
-    print_state(&st);
     for (r = 0; r < SIZE; ++r)
       memcpy(result[r], st.m_mtx[r], SIZE*sizeof (int32_t));
     return result;
