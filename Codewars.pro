@@ -22,7 +22,8 @@ SOURCES += \
     src/pointer_monster.c \
     src/commons.c \
     src/mul.s \
-    src/skyscrapers.c
+    src/skyscrapers.c \
+    src/triangle.c
 
 HEADERS += \
     include/bignum.h \
@@ -35,4 +36,5 @@ HEADERS += \
     include/bignum_mul.h \
     include/pointer_monster.h \
     include/commons.h \
-    include/skyscrapers.h
+    include/skyscrapers.h \
+    include/triangle.h
