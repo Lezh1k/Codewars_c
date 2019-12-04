@@ -7,13 +7,15 @@ INCLUDEPATH += include \
   /opt/intel/compilers_and_libraries/linux/mkl/include
 
 QMAKE_CFLAGS += -msse4.2
-LIBS += -lgmp
+LIBS += -lgmp -lstemmer
 
 SOURCES += \
     src/bignum.c \
     src/central_attention.c \
     src/main.c \
     src/brainfuck.c \
+    src/merge_intervals.c \
+    src/regexp.c \
     src/search_string.c \
     src/roman.c \
     src/int_partitions.c \
@@ -23,12 +25,15 @@ SOURCES += \
     src/commons.c \
     src/mul.s \
     src/skyscrapers.c \
+    src/snail.c \
     src/triangle.c
 
 HEADERS += \
     include/bignum.h \
     include/brainfuck.h \
     include/central_attention.h \
+    include/merge_intervals.h \
+    include/regexp.h \
     include/search_string.h \
     include/roman.h \
     include/int_partitions.h \
@@ -37,4 +42,5 @@ HEADERS += \
     include/pointer_monster.h \
     include/commons.h \
     include/skyscrapers.h \
+    include/snail.h \
     include/triangle.h
