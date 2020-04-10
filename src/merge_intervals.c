@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include "merge_intervals.h"
+
 static int cmp_interval_asc(const void *l, const void *r);
 
 int
@@ -13,7 +15,7 @@ cmp_interval_asc(const void *l,
 ///////////////////////////////////////////////////////
 
 int
-sum_intervals(const interval_t *v,
+sum_intervals(interval_t *v,
               size_t n) {
   if (n == 0)
     return 0;
