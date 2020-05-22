@@ -6,14 +6,10 @@
 #include <stdlib.h>
 #include "voronoi.h"
 
-
 int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  test_line_intersections();
-  test_line_perpendicular();
 }
 ///////////////////////////////////////////////////////
-
 

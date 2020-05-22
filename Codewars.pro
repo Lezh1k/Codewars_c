@@ -3,12 +3,7 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
-INCLUDEPATH += include \
-  /opt/intel/compilers_and_libraries/linux/mkl/include
-
-DEFINES += __x86_64__
-QMAKE_CFLAGS += -msse4.2 -msse4.1
-LIBS += -lgmp -lstemmer
+INCLUDEPATH += include
 
 SOURCES += \
     src/bignum.c \

@@ -2,6 +2,7 @@
 #define SNAIL_H
 
 #include <stdlib.h>
+#include <stdio.h>
 
 int **from_static_arr(int *sa, int N) {
   int **res = malloc(N * sizeof(int*));
