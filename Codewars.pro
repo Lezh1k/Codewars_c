@@ -3,11 +3,15 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
+QMAKE_CFLAGS += -std=c11
+LIBS += -lm -lpthread
+
 INCLUDEPATH += include
 
 SOURCES += \
     src/bignum.c \
     src/central_attention.c \
+    src/list.c \
     src/main.c \
     src/brainfuck.c \
     src/merge_intervals.c \
@@ -30,6 +34,7 @@ HEADERS += \
     include/bignum.h \
     include/brainfuck.h \
     include/central_attention.h \
+    include/list.h \
     include/merge_intervals.h \
     include/num_sum_without_va.h \
     include/regexp.h \

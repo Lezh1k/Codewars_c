@@ -2,25 +2,29 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "regexp.h"
-nfa_state_t match_state = {.signal = SS_MATCH};
 
 typedef struct paren {
   int nalt;
   int natom;
 } paren_t;
+static paren_t paren(void);
 
-static paren_t paren() {
+paren_t paren() {
   paren_t r = {.nalt = 0, .natom = 0};
   return r;
 }
 ///////////////////////////////////////////////////////
 
+static RegExp* postfixToRegExp(const int16_t *lst,
+                               int len);
+
 int
 regex2postfix(const char *regexp,
               int16_t **result,
               int *len) {
-  static paren_t st_paren[0xff] = {0};
+  static paren_t st_paren[0xff] = {0}; //warning! unsafe
   paren_t *paren_sp = st_paren;
 #define paren_push(x) (*paren_sp++ = x)
 #define paren_pop() (*--paren_sp)
@@ -61,7 +65,7 @@ regex2postfix(const char *regexp,
         if(paren_empty())
           return ERR_WRONG_PAREN; //wrong parentheses!
         if(natom == 0)
-          return ERR_WRONG_REGEXP; //wrong regexp
+          return ERR_WRONG_REGEXP; //wrong regexp. () - empty parentheses
 
         while(--natom > 0)
           *res++ = SS_CONCAT;
@@ -89,7 +93,7 @@ regex2postfix(const char *regexp,
           *res++ = SS_CONCAT;
         }
         *res++ = *regexp;
-        natom++;
+        ++natom;
         break;
     }
   }
@@ -107,75 +111,15 @@ regex2postfix(const char *regexp,
   return 0;
 }
 ///////////////////////////////////////////////////////
-///////////////////////////////////////////////////////
-///////////////////////////////////////////////////////
 
-nfa_state_t *nfa_state(int32_t signal,
-                       nfa_state_t *out,
-                       nfa_state_t *out1,
-                       int32_t index) {
-  nfa_state_t *res = malloc(sizeof(nfa_state_t));
-  res->signal = signal;
-  res->out = out;
-  res->out1 = out1;
-  res->index = index;
-  return res;
-}
-///////////////////////////////////////////////////////
-
-frag_t
-frag(nfa_state_t *start,
-     ptr_list_t *out) {
-  frag_t res = {
-    .start = start,
-    .out = out
-  };
-  return res;
-}
-///////////////////////////////////////////////////////
-
-ptr_list_t *
-pl_list(nfa_state_t **outp) {
-  ptr_list_t *l;
-  l = (ptr_list_t *)outp;
-  l->next = NULL;
-  return l;
-}
-///////////////////////////////////////////////////////
-
-void
-pl_patch(ptr_list_t *lst,
-         nfa_state_t *s) {
-  ptr_list_t *next;
-  for(;lst;lst=next){
-    next=lst->next;
-    lst->state=s;
-  }
-}
-///////////////////////////////////////////////////////
-
-ptr_list_t *
-pl_append(ptr_list_t *l,
-          ptr_list_t *r) {
-  ptr_list_t *old_l = l;
-  while(l->next) l = l->next;
-  l->next = r;
-  return old_l;
-}
-///////////////////////////////////////////////////////
-
-nfa_state_t *regexp_postfix2nfa(const int16_t *lst,
-                                int len) {
-
-  if(!len)
+RegExp* postfixToRegExp(const int16_t *lst,
+                        int len) {
+  if(len <= 0)
     return NULL;
 
-  frag_t e1, e2, e;
-  nfa_state_t *s;
-  //  frag_t *stack = malloc((size_t)len * sizeof (frag_t));
-  frag_t stack[128] = {0};
-  frag_t *sp = stack;
-  int32_t ix = 0;
+  RegExp **stack = malloc(sizeof(RegExp*) * (size_t)len);
+  RegExp **sp = stack;
+  RegExp *e2, *e1;
 
 #define push(state) (*sp++ = state)
 #define pop() (*--sp)
@@ -184,51 +128,76 @@ nfa_state_t *regexp_postfix2nfa(const int16_t *lst,
     int p = lst[i];
     switch(p){
       default:
-        s = nfa_state(p, NULL, NULL, ++ix);
-        push(frag(s, pl_list(&s->out)));
+        push(normal((char)p));
         break;
       case '.':
-        s = nfa_state(SS_DOT, NULL, NULL, ++ix);
-        push(frag(s, pl_list(&s->out)));
+        push(any());
         break;
       case SS_CONCAT:	/* catenate */
         e2 = pop();
         e1 = pop();
-        pl_patch(e1.out, e2.start);
-        push(frag(e1.start, e2.out));
+        push(add(e1, e2));
         break;
       case '|':	/* alternate */
         e2 = pop();
         e1 = pop();
-        s = nfa_state(SS_SPLIT, e1.start, e2.start, ++ix);
-        push(frag(s, pl_append(e1.out, e2.out)));
+        push(orfn(e1, e2));
         break;
       case '?':	/* zero or one */
-        e = pop();
-        s = nfa_state(SS_SPLIT, e.start, NULL, ++ix);
-        push(frag(s, pl_append(e.out, pl_list(&s->out1))));
+        e1 = pop();
+        //push(zeroOrOne(e1)); not implemented in this kata
         break;
       case '*':	/* zero or more */
-        e = pop();
-        s = nfa_state(SS_SPLIT, e.start, NULL, ++ix);
-        pl_patch(e.out, s);
-        push(frag(s, pl_list(&s->out1)));
+        e1 = pop();
+        push(zeroOrMore(e1));
         break;
       case '+':	/* one or more */
-        e = pop();
-        s = nfa_state(SS_SPLIT, e.start, NULL, ++ix);
-        pl_patch(e.out, s);
-        push(frag(e.start, pl_list(&s->out1)));
+        e1 = pop();
+        //push(oneOrMore(e1)); not implemented in this kata
         break;
     }
   }
 
-  e = pop();
+  e1 = pop();
   if(sp != stack)
-    return NULL;
-  pl_patch(e.out, &match_state);
-  return e.start;
+    return NULL; // something went wrong
+  return e1;
 #undef pop
 #undef push
 }
 ///////////////////////////////////////////////////////
+
+RegExp *
+parseRegExp(const char *input) {
+  int postfix_len, rc;
+  int16_t *postfix_arr = NULL;
+
+  rc = regex2postfix(input, &postfix_arr, &postfix_len);
+  do {
+    if (rc) {
+      printf("Shit happened\n");
+      break;
+    }
+
+    for (int i = 0; i < postfix_len; ++i) {
+      printf("%c\t", (char)postfix_arr[i]);
+    }
+    printf("\n");
+  } while(0);
+
+  free(postfix_arr);
+  return NULL;
+}
+///////////////////////////////////////////////////////
+
+RegExp *any(){return NULL;}
+
+RegExp *normal(char c){return NULL;}
+
+RegExp *zeroOrMore(RegExp *starred){return NULL;}
+
+RegExp *orfn(RegExp *left, RegExp *right){return NULL;}
+
+RegExp *str(RegExp *first){return NULL;}
+
+RegExp *add(RegExp *str, RegExp *next){return NULL;}
