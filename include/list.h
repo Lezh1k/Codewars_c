@@ -13,8 +13,7 @@ struct list_node {
 #define LST_ENTRY_INVALID 0
 
 void lst_init(list_node_t *lst);
-void lst_push_back(list_node_t *ni,
-                   list_node_t *lst);
+void lst_push_back(list_node_t *lst, list_node_t *ni);
 void lst_push_front(list_node_t *ni,
                     list_node_t *lst);
 
