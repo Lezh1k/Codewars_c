@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "voronoi.h"
 
-static void line_norm(line_t *l);
+static void line_normalization(line_t *l);
 static int cmp_point_by_polar_angle(const void *l, const void *r);
 static bool is_figure_closed(point_t *edges, size_t N);
 static double locus_area(const point_t *arr,
@@ -50,12 +50,12 @@ line_t line_from_coords(double x0, double y0,
   r.a = y1 - y0;
   r.b = x0 - x1;
   r.c = -r.a*x0 - r.b*y0;
-  line_norm(&r);
+  line_normalization(&r);
   return r;
 }
 ///////////////////////////////////////////////////////
 
-void line_norm(line_t *l) {
+void line_normalization(line_t *l) {
   double z = sqrt (l->a*l->a + l->b*l->b);
   if (fabs(z) < VORONOI_EPS)
     return;
@@ -179,7 +179,7 @@ locus_area(const point_t *arr,
   for (size_t i = dstIX+1; i < N; ++i) {
     point_t mp = point_middle(&arr[dstIX], &arr[i]);
     line_t l = line_from_points(&arr[dstIX], &arr[i]);
-    *pmn++ = line_normal(&l, &mp);    
+    *pmn++ = line_normal(&l, &mp);
   }
 
   for (size_t i = 0; i < N-1; ++i) {
@@ -210,7 +210,7 @@ locus_area(const point_t *arr,
     }
     dst.x = dst.y = 0.0;
 
-    qsort((void*)locus_edges, edges_count, sizeof(point_t), cmp_point_by_polar_angle);    
+    qsort((void*)locus_edges, edges_count, sizeof(point_t), cmp_point_by_polar_angle);
 
     //check somehow that this points creates closed figure
     for (size_t i = 0; i < edges_count-1; ++i) {

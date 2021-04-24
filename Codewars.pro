@@ -4,9 +4,10 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 QMAKE_CFLAGS += -std=c11
-LIBS += -lm -lpthread
+LIBS += -lm -lpthread -lMagickWand-7.Q16HDRI -lMagickCore-7.Q16HDRI
 
-INCLUDEPATH += include
+INCLUDEPATH += include \
+    /usr/include/ImageMagick-7/ \
 
 SOURCES += \
     src/bignum.c \
@@ -16,6 +17,7 @@ SOURCES += \
     src/brainfuck.c \
     src/merge_intervals.c \
     src/num_sum_without_va.c \
+    src/ocr.c \
     src/regexp.c \
     src/search_string.c \
     src/roman.c \
@@ -37,6 +39,7 @@ HEADERS += \
     include/list.h \
     include/merge_intervals.h \
     include/num_sum_without_va.h \
+    include/ocr.h \
     include/regexp.h \
     include/search_string.h \
     include/roman.h \

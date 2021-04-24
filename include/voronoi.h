@@ -32,7 +32,7 @@ line_t line_from_coords(double x0,
 
 
 line_t line_normal(const line_t *l,
-                          const point_t *p);
+                   const point_t *p);
 
 // will return val == -1 if lines are parallel, 1 if lines are equal and 0 if there is intersection between them
 liec_t line_intersection(const line_t *l,
