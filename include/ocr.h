@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct OcrImage { int width, height; uint32_t *pixels; } ocr_image_t;
+typedef struct OcrImage { int width, height; uint8_t *pixels; } ocr_image_t;
 extern const unsigned IMAGE_MAX;
 
 ocr_image_t ocr_img_from_file(const char *path, bool *err);

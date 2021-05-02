@@ -9,9 +9,10 @@
 
 #include <unistd.h>
 #include <linux/fb.h>
-#include <linux/kd.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+
+#include <X11/Xlib.h>
 
 #define BMP_SIGNATURE (0x4d42)
 
@@ -77,19 +78,27 @@ typedef struct screen {
   uint_fast16_t    red, green, blue;
 } screen_t;
 
-static void img_save_to_bmp(const ocr_image_t *img) __attribute_used__;
-static void img_display_fb(const ocr_image_t *img); //using linux/fd
+static void img_save_to_bmp(const ocr_image_t *img, const char *dst_path) __attribute_used__;
+static void img_display_fb(const ocr_image_t *img, const char *fbdev) __attribute_used__;
+
+static void img_display_X(const ocr_image_t *img);
 
 char*
-ocr(ocr_image_t *image) {  
-  //  img_save_to_bmp(image);
-  img_display_fb(image);
+ocr(ocr_image_t *img) {
+  img_save_to_bmp(img, "/home/lezh1k/1.bmp");
   return "0";
 }
 //////////////////////////////////////////////////////////////
 
 void
-img_save_to_bmp(const ocr_image_t *img) {
+img_display_X(const ocr_image_t *img) {
+  (void) img;
+}
+//////////////////////////////////////////////////////////////
+
+void
+img_save_to_bmp(const ocr_image_t *img,
+                const char *dst_path) {
   bmp_file_hdr_t f_hdr = {0};
   bmp_info_hdr_t img_hdr = {0};
   uint32_t row_width;
@@ -99,7 +108,7 @@ img_save_to_bmp(const ocr_image_t *img) {
   img_hdr.width = img->width; // in pixels;
   img_hdr.height = img->height; // in pixels
   img_hdr.plains = 1; // (=1) ??
-  img_hdr.bpp = BPP_24; //bits per pixel
+  img_hdr.bpp = BPP_8;
   img_hdr.compression_type = CT_RGB; // CT_RGB
   row_width = ((img_hdr.width * img_hdr.bpp + 31) & ~31) / 8;
   img_hdr.size_img = row_width * img_hdr.height;
@@ -119,13 +128,7 @@ img_save_to_bmp(const ocr_image_t *img) {
       img_hdr.size_hdr +
       img_hdr.colors_used * sizeof (RGBQUAD);
 
-  uint8_t *row_data = malloc(row_width);
-  if (row_data == NULL) {
-    perror("failed to allocate memory for 1 row");
-    return;
-  }
-
-  FILE *f = fopen("/home/lezh1k/1.bmp", "w");
+  FILE *f = fopen(dst_path, "w");
   if (f == NULL) {
     perror("failed to open file for writing");
     return;
@@ -134,17 +137,21 @@ img_save_to_bmp(const ocr_image_t *img) {
   do {
     fwrite(&f_hdr, 1, sizeof(f_hdr), f);
     fwrite(&img_hdr, 1, img_hdr.size_hdr, f);
-    for (int r = img->height - 1; r >= 0; --r) {
-      for (int c = 0; c < img->width; ++c) {
-        row_data[c*3] = img->pixels[r * img->width + c];
-        row_data[c*3+1] = img->pixels[r * img->width + c];
-        row_data[c*3+2] = img->pixels[r * img->width + c];
+
+    // write color table gray scale
+    if (img_hdr.bpp <= BPP_8) {
+      for (uint32_t cu = 0; cu < img_hdr.colors_used; ++cu) {
+        RGBQUAD q = {.rgbBlue = cu, .rgbGreen = cu,
+          .rgbRed = cu,.rgbReserved = 0};
+        fwrite(&q, 1, sizeof(RGBQUAD), f);
       }
-      fwrite(row_data, 1, row_width, f);
+    }
+
+    for (int r = img->height - 1; r >= 0; --r) {
+      fwrite((void*)&img->pixels[r * img->width], 1, row_width, f);
     }
   } while (0);
 
-  free(row_data);
   fclose(f);
 }
 //////////////////////////////////////////////////////////////
@@ -155,7 +162,7 @@ ocr_img_from_file(const char *path,
   char buff[0xff] = {0};
   char *tmp, c;
   ocr_image_t res = {0};
-  uint32_t *ptr_pixels;
+  uint8_t *ptr_pixels;
   FILE *f = fopen(path, "r");
 
   *err = true;
@@ -175,7 +182,7 @@ ocr_img_from_file(const char *path,
       break;
     }
 
-    res.pixels = malloc(sizeof(uint32_t) * res.width * res.height);
+    res.pixels = malloc(sizeof(uint8_t) * res.width * res.height);
     if (res.pixels == NULL) {
       perror("failed to allocate image memory");
       break;
@@ -194,7 +201,7 @@ ocr_img_from_file(const char *path,
 
       *tmp++ = 0;
       tmp = buff;
-      sscanf(buff, "0x%02x", ptr_pixels++);
+      sscanf(buff, "0x%2s", ptr_pixels++);
     }
 
     *err = false;
@@ -212,10 +219,8 @@ ocr_img_free(ocr_image_t *img) {
 //////////////////////////////////////////////////////////////
 
 void
-img_display_fb(const ocr_image_t *img) {
-  (void)img;
-#define fbdev "/dev/fb0"
-
+img_display_fb(const ocr_image_t *img,
+               const char *fbdev) {
   int fbfd = open (fbdev, O_RDWR);
   if (fbfd < 0) {
     perror("failed to open fbdev");
@@ -269,9 +274,8 @@ img_display_fb(const ocr_image_t *img) {
       perror("failed to activate framebuffer");
     }
 
-    printf("press any key to continue");
-    getchar(); // wait for
-
+    printf("press any key to continue...\n");
+    getchar(); // wait for any key
     munmap(s.buffer, s.size);
   } while(0);
 
