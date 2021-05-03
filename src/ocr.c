@@ -6,13 +6,12 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <unistd.h>
 #include <linux/fb.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-
-#include <X11/Xlib.h>
 
 #define BMP_SIGNATURE (0x4d42)
 
@@ -78,27 +77,38 @@ typedef struct screen {
   uint_fast16_t    red, green, blue;
 } screen_t;
 
-static void img_save_to_bmp(const ocr_image_t *img, const char *dst_path) __attribute_used__;
-static void img_display_fb(const ocr_image_t *img, const char *fbdev) __attribute_used__;
+typedef struct bmp_data {
+  size_t size;
+  uint8_t *data;
+} bmp_data_t;
 
-static void img_display_X(const ocr_image_t *img);
+static bmp_data_t img_to_bmp_data(const ocr_image_t *img);
+static void img_save_to_bmp(const ocr_image_t *img,
+                            const char *dst_path);
+static void img_show(const ocr_image_t *img);
 
 char*
 ocr(ocr_image_t *img) {
-  img_save_to_bmp(img, "/home/lezh1k/1.bmp");
+  img_show(img);
   return "0";
 }
 //////////////////////////////////////////////////////////////
 
-void
-img_display_X(const ocr_image_t *img) {
-  (void) img;
+void img_show(const ocr_image_t *img)  {
+  // mapped to tmpfs, used in RAM!
+#define tmp_bmp_path "/dev/shm/1.bmp"
+#define feh_cmd "feh "tmp_bmp_path
+
+  img_save_to_bmp(img, tmp_bmp_path);
+  system(feh_cmd);
+  remove(tmp_bmp_path);
 }
 //////////////////////////////////////////////////////////////
 
-void
-img_save_to_bmp(const ocr_image_t *img,
-                const char *dst_path) {
+bmp_data_t
+img_to_bmp_data(const ocr_image_t *img) {
+  uint8_t *ptr8;
+  bmp_data_t res = {0};
   bmp_file_hdr_t f_hdr = {0};
   bmp_info_hdr_t img_hdr = {0};
   uint32_t row_width;
@@ -128,31 +138,60 @@ img_save_to_bmp(const ocr_image_t *img,
       img_hdr.size_hdr +
       img_hdr.colors_used * sizeof (RGBQUAD);
 
-  FILE *f = fopen(dst_path, "w");
-  if (f == NULL) {
-    perror("failed to open file for writing");
+  res.size = f_hdr.file_size;
+  res.data = malloc(res.size);
+
+  if (res.data == NULL) {
+    perror("failed to allocate memory for bmp data");
+    res.size = 0;
+    return res;
+  }
+
+  ptr8 = res.data;
+  memcpy(ptr8, &f_hdr, sizeof (f_hdr));
+  ptr8 += sizeof (f_hdr);
+  memcpy(ptr8, &img_hdr, img_hdr.size_hdr);
+  ptr8 += img_hdr.size_hdr;
+  for (uint32_t cu = 0; cu < img_hdr.colors_used; ++cu) {
+    *ptr8++ = cu;
+    *ptr8++ = cu;
+    *ptr8++ = cu;
+    *ptr8++ = cu;
+  }
+
+  for (int r = img->height - 1; r >= 0; --r) {
+    for (int c = 0; c < img->width; ++c)
+      *ptr8++ = (uint8_t) img->pixels[r * img->width + c];
+    memset(ptr8, 0, row_width - img->width);
+    ptr8 += row_width - img->width;
+  }
+  return res;
+}
+//////////////////////////////////////////////////////////////
+
+void
+img_save_to_bmp(const ocr_image_t *img,
+                const char *dst_path) {
+  bmp_data_t bmp = img_to_bmp_data(img);
+  FILE *f;
+
+  if (bmp.data == NULL || bmp.size == 0) {
+    printf("failed to convert image into bmp");
     return;
   }
 
   do {
-    fwrite(&f_hdr, 1, sizeof(f_hdr), f);
-    fwrite(&img_hdr, 1, img_hdr.size_hdr, f);
-
-    // write color table gray scale
-    if (img_hdr.bpp <= BPP_8) {
-      for (uint32_t cu = 0; cu < img_hdr.colors_used; ++cu) {
-        RGBQUAD q = {.rgbBlue = cu, .rgbGreen = cu,
-          .rgbRed = cu,.rgbReserved = 0};
-        fwrite(&q, 1, sizeof(RGBQUAD), f);
-      }
+    f = fopen(dst_path, "w");
+    if (f == NULL) {
+      perror("failed to open file for writing");
+      break;
     }
 
-    for (int r = img->height - 1; r >= 0; --r) {
-      fwrite((void*)&img->pixels[r * img->width], 1, row_width, f);
-    }
+    fwrite(bmp.data, 1, bmp.size, f);
+    fclose(f);
   } while (0);
 
-  fclose(f);
+  free(bmp.data);
 }
 //////////////////////////////////////////////////////////////
 
@@ -162,7 +201,7 @@ ocr_img_from_file(const char *path,
   char buff[0xff] = {0};
   char *tmp, c;
   ocr_image_t res = {0};
-  uint8_t *ptr_pixels;
+  uint32_t *ptr_pixels;
   FILE *f = fopen(path, "r");
 
   *err = true;
@@ -182,7 +221,7 @@ ocr_img_from_file(const char *path,
       break;
     }
 
-    res.pixels = malloc(sizeof(uint8_t) * res.width * res.height);
+    res.pixels = malloc(sizeof(uint32_t) * res.width * res.height);
     if (res.pixels == NULL) {
       perror("failed to allocate image memory");
       break;
@@ -201,7 +240,7 @@ ocr_img_from_file(const char *path,
 
       *tmp++ = 0;
       tmp = buff;
-      sscanf(buff, "0x%2s", ptr_pixels++);
+      sscanf(buff, "0x%02x", ptr_pixels++);
     }
 
     *err = false;
@@ -218,67 +257,3 @@ ocr_img_free(ocr_image_t *img) {
 }
 //////////////////////////////////////////////////////////////
 
-void
-img_display_fb(const ocr_image_t *img,
-               const char *fbdev) {
-  int fbfd = open (fbdev, O_RDWR);
-  if (fbfd < 0) {
-    perror("failed to open fbdev");
-    return;
-  }
-
-  do {
-    struct fb_var_screeninfo vinf;
-    struct fb_fix_screeninfo finf;
-
-    if (ioctl (fbfd, FBIOGET_FSCREENINFO, &finf) == -1) {
-      perror("failed to open fixed screen info");
-      break;
-    }
-
-    if (ioctl (fbfd, FBIOGET_VSCREENINFO, &vinf) == -1) {
-      perror("failed to open variable screen info");
-      break;
-    }
-
-    screen_t s = {
-      .size            = finf.line_length * vinf.yres,
-      .bytes_per_pixel = vinf.bits_per_pixel / 8,
-      .bytes_per_line  = finf.line_length,
-      .red             = vinf.red.offset/8,
-      .green           = vinf.green.offset/8,
-      .blue            = vinf.blue.offset/8,
-      .width           = vinf.xres,
-      .height          = vinf.yres
-    };
-    s.buffer = mmap(0, s.size, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
-
-    if (s.buffer == MAP_FAILED) {
-      perror("failed to map frame buffer");
-      break;
-    }
-
-    uint_fast32_t start_x = vinf.xres / 2 - img->width / 2;
-    uint_fast32_t start_y = vinf.yres / 2 - img->height / 2;
-    for (int r = 0; r < img->height; r++) {
-      for (int c = 0; c < img->width; c++) {
-        uint_fast32_t pix_offset = (c+start_x) * s.bytes_per_pixel + (r+start_y) * s.bytes_per_line;
-        s.buffer[pix_offset + s.red] = img->pixels[r*img->width + c];
-        s.buffer[pix_offset + s.green] = img->pixels[r*img->width + c];
-        s.buffer[pix_offset + s.blue] = img->pixels[r*img->width + c];
-      }
-    }
-
-    vinf.activate = FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
-    if ((ioctl( fbfd, FBIOPUT_VSCREENINFO, &vinf)) == -1) {
-      perror("failed to activate framebuffer");
-    }
-
-    printf("press any key to continue...\n");
-    getchar(); // wait for any key
-    munmap(s.buffer, s.size);
-  } while(0);
-
-  close (fbfd);
-}
-//////////////////////////////////////////////////////////////

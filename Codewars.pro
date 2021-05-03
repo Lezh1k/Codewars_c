@@ -3,8 +3,8 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
-QMAKE_CFLAGS += -std=c11
-LIBS += -lm -lpthread -lMagickWand-7.Q16HDRI -lMagickCore-7.Q16HDRI
+QMAKE_CFLAGS += -std=gnu11
+LIBS += -lm -lpthread
 
 INCLUDEPATH += include \
     /usr/include/ImageMagick-7/ \
