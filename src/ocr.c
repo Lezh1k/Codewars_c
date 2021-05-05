@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <assert.h>
+#include <math.h>
 
 #include <unistd.h>
 #include <linux/fb.h>
@@ -70,27 +72,167 @@ typedef struct bmp_info_hdr {
 } bmp_info_hdr_t;
 #pragma pack(pop)
 
-typedef struct screen {
-  char    *buffer;
-  size_t  size, bytes_per_pixel, bytes_per_line,
-  width, height;
-  uint_fast16_t    red, green, blue;
-} screen_t;
-
 typedef struct bmp_data {
   size_t size;
   uint8_t *data;
 } bmp_data_t;
 
+typedef struct convolutional_kernel {
+  size_t height, width;
+  float *mtx;
+} convolutional_kernel_t;
+
+#define HIST_LEN 0x100
+typedef struct histogram {
+  uint32_t data[HIST_LEN];
+} histogram_t;
+
+// AUX
 static bmp_data_t img_to_bmp_data(const ocr_image_t *img);
 static void img_save_to_bmp(const ocr_image_t *img,
                             const char *dst_path);
 static void img_show(const ocr_image_t *img);
 
+// MAIN
+static histogram_t hist_from_img(const ocr_image_t *img);
+static float hist_sigma(const histogram_t *hist);
+
+static void img_apply_convolution(ocr_image_t *img,
+                                  const convolutional_kernel_t *kernel);
+static void img_blur(ocr_image_t *img, const histogram_t *hist);
+static void img_otsu_binarization(ocr_image_t *img);
+
 char*
 ocr(ocr_image_t *img) {
+  histogram_t hist = hist_from_img(img);
+  img_show(img);
+  img_blur(img, &hist);
   img_show(img);
   return "0";
+}
+//////////////////////////////////////////////////////////////
+
+float
+hist_sigma(const histogram_t *hist) {
+  uint32_t N = 0;
+  float mean, sigma;
+
+  printf("*******************\n");
+  for (int i = 0; i < HIST_LEN; ++i) {
+    printf("%d ", hist->data[i]);
+    if ((i+1) % 16 == 0)
+      printf("\n");
+  }
+  printf("**********************\n");
+
+  for (int i = 0; i < HIST_LEN; ++i) {
+    N += hist->data[i];
+  }
+  mean = 0.0f;
+  for (int i = 0; i < HIST_LEN; ++i) {
+    mean += (hist->data[i] * i) / (float)N;
+  }
+
+  sigma = 0.0f;
+  for (int i = 0; i < HIST_LEN; ++i) {
+    float t = i - mean;
+    sigma += t * t;
+  }
+
+  sigma = sqrtf(1.f / N * sigma);
+  return sigma;
+}
+//////////////////////////////////////////////////////////////
+
+histogram_t
+hist_from_img(const ocr_image_t *img) {
+  histogram_t res = {0}; //danger for big hist_len values
+  for (int r = 0; r < img->height; ++r) {
+    for (int c = 0; c < img->width; ++c) {
+      uint32_t v = img->pixels[r * img->width + c];
+      v = v > HIST_LEN ? HIST_LEN : v; // not necessary
+      res.data[v]++;
+    } // for rows
+  } // for cols
+  return res;
+}
+//////////////////////////////////////////////////////////////
+
+void
+img_apply_convolution(ocr_image_t *img,
+                      const convolutional_kernel_t *kernel) {
+  int r, c;
+  size_t kr, kc;
+  float sum;
+
+  for (r = 0; r < img->height; ++r) {
+    for (c = 0; c < img->width; ++c) {
+      sum = 0.0f;
+
+      for (kr = 0; kr < kernel->height; ++kr) {
+        for (kc = 0; kc < kernel->width; ++kc) {
+          int ri, ci;
+          ri = r+kr - kernel->width / 2;
+          ci = c+kc - kernel->height / 2;
+
+          if (ci < 0) ci = 0;
+          if (ci >= img->width) ci = img->width-1;
+          if (ri < 0) ri = 0;
+          if (ri >= img->height) ri = img->height-1;
+
+          sum += img->pixels[ri * img->width + ci] *
+              kernel->mtx[kr * kernel->width + kc];
+        } // for kr < kernel->height
+      } // for kc < kernel->width
+
+      sum = sum > 255.f ? 255.f : sum;
+      sum = sum < 0.f ? 0.f : sum;
+
+      img->pixels[r * img->width + c] = (uint32_t) sum;
+    } // for r < img->height
+  } // for c < img->width
+}
+//////////////////////////////////////////////////////////////
+
+void
+img_blur(ocr_image_t *img,
+         const histogram_t *hist) {
+#define BLUR_N 3
+  float sigma = hist_sigma(hist);
+  float sigma_2 = sigma*sigma;
+  float sum = 0.0;
+  convolutional_kernel_t kernel;
+  kernel.height = kernel.width = BLUR_N;
+  kernel.mtx = malloc(sizeof(float) * BLUR_N * BLUR_N);
+
+  for (size_t r = 0; r < kernel.height; ++r) {
+    for (size_t c = 0; c < kernel.width; ++c) {
+      int y = (int)r - kernel.height / 2;
+      int x = (int)c - kernel.width / 2;
+
+      float pow = - (x*x + y*y) / (2.f * sigma_2);
+      float G = (1.f / (M_2_PI * sigma_2)) * expf(pow);
+
+      sum += G;
+      kernel.mtx[r * kernel.width + c] = G;
+    }
+  }
+
+  // normalize
+  for (size_t r = 0; r < kernel.height; ++r) {
+    for (size_t c = 0; c < kernel.width; ++c) {
+      kernel.mtx[r * kernel.width + c] /= sum;
+    }
+  }
+
+  img_apply_convolution(img, &kernel);
+  free(kernel.mtx);
+}
+//////////////////////////////////////////////////////////////
+
+void
+img_otsu_binarization(ocr_image_t *img) {
+
 }
 //////////////////////////////////////////////////////////////
 
