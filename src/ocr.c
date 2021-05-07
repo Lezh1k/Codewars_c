@@ -84,6 +84,9 @@ typedef struct convolutional_kernel {
 
 #define HIST_LEN 0x100
 typedef struct histogram {
+  uint32_t total; //total pixels count
+  float sum; //sum of all values in histogram
+
   uint32_t data[HIST_LEN];
 } histogram_t;
 
@@ -99,8 +102,15 @@ static float hist_sigma(const histogram_t *hist);
 
 static void img_apply_convolution(ocr_image_t *img,
                                   const convolutional_kernel_t *kernel);
-static void img_blur(ocr_image_t *img, const histogram_t *hist);
-static void img_otsu_binarization(ocr_image_t *img);
+static void img_blur(ocr_image_t *img,
+                     const histogram_t *hist);
+
+static uint32_t img_otsu_get_threshold(ocr_image_t *img,
+                                  const histogram_t *hist);
+static void img_otsu_threshold_filter(ocr_image_t *img,
+                                      const histogram_t *hist);
+static void img_threshold_filter(ocr_image_t *img,
+                                 uint32_t threshold);
 
 char*
 ocr(ocr_image_t *img) {
@@ -108,38 +118,22 @@ ocr(ocr_image_t *img) {
   img_show(img);
   img_blur(img, &hist);
   img_show(img);
+  img_otsu_threshold_filter(img, &hist);
+  img_show(img);
   return "0";
 }
 //////////////////////////////////////////////////////////////
 
 float
 hist_sigma(const histogram_t *hist) {
-  uint32_t N = 0;
-  float mean, sigma;
-
-  printf("*******************\n");
-  for (int i = 0; i < HIST_LEN; ++i) {
-    printf("%d ", hist->data[i]);
-    if ((i+1) % 16 == 0)
-      printf("\n");
-  }
-  printf("**********************\n");
-
-  for (int i = 0; i < HIST_LEN; ++i) {
-    N += hist->data[i];
-  }
-  mean = 0.0f;
-  for (int i = 0; i < HIST_LEN; ++i) {
-    mean += (hist->data[i] * i) / (float)N;
-  }
-
+  float mean, sigma;  
+  mean = hist->sum / hist->total;
   sigma = 0.0f;
   for (int i = 0; i < HIST_LEN; ++i) {
     float t = i - mean;
     sigma += t * t;
   }
-
-  sigma = sqrtf(1.f / N * sigma);
+  sigma = sqrtf(1.f / hist->total * sigma);
   return sigma;
 }
 //////////////////////////////////////////////////////////////
@@ -147,10 +141,11 @@ hist_sigma(const histogram_t *hist) {
 histogram_t
 hist_from_img(const ocr_image_t *img) {
   histogram_t res = {0}; //danger for big hist_len values
+  res.total = img->height * img->width;
   for (int r = 0; r < img->height; ++r) {
     for (int c = 0; c < img->width; ++c) {
-      uint32_t v = img->pixels[r * img->width + c];
-      v = v > HIST_LEN ? HIST_LEN : v; // not necessary
+      uint32_t v = img->pixels[r * img->width + c] & 0xff;
+      res.sum += v;
       res.data[v]++;
     } // for rows
   } // for cols
@@ -231,8 +226,59 @@ img_blur(ocr_image_t *img,
 //////////////////////////////////////////////////////////////
 
 void
-img_otsu_binarization(ocr_image_t *img) {
+img_threshold_filter(ocr_image_t *img,
+                     uint32_t threshold) {
+  uint32_t *ptr = img->pixels;
+  uint32_t size = img->height * img->width;
+  for (uint32_t i = 0; i < size; ++i, ++ptr) {
+    *ptr = *ptr > threshold ? 0xff : 0;
+  }
+}
+//////////////////////////////////////////////////////////////
 
+void
+img_otsu_threshold_filter(ocr_image_t *img,
+                          const histogram_t *hist) {
+  uint32_t t = img_otsu_get_threshold(img, hist);
+  img_threshold_filter(img, t);
+}
+//////////////////////////////////////////////////////////////
+
+uint32_t
+img_otsu_get_threshold(ocr_image_t *img,
+                       const histogram_t *hist) {
+  float sum_b = 0.f; // sum background
+  uint32_t wB, wF; // weight background/foreground
+  float mB, mF; //mean background/foreground
+  float var_max = 0.0f; //
+  uint32_t threshold = 0;
+
+  wB = wF = 0;
+  for (int t = 0; t < HIST_LEN; t++) {
+     wB += hist->data[t];               // Weight Background
+     if (wB == 0)
+       continue;
+
+     wF = hist->total - wB;                 // Weight Foreground
+     if (wF == 0)
+       break;
+
+     sum_b += (float) (t * hist->data[t]);
+
+     mB = sum_b / wB; // Mean Background
+     mF = (hist->sum - sum_b) / wF; // Mean Foreground
+
+     // Calculate Between Class Variance
+     float var_between = wB * wF * (mB - mF) * (mB - mF);
+
+     // Check if new maximum found
+     if (var_between  > var_max) {
+        var_max = var_between ;
+        threshold = t;
+     }
+  } // for t < HIST_LEN
+
+  return threshold;
 }
 //////////////////////////////////////////////////////////////
 
