@@ -18,6 +18,7 @@ SOURCES += \
     src/merge_intervals.c \
     src/num_sum_without_va.c \
     src/ocr.c \
+    src/queue.c \
     src/regexp.c \
     src/search_string.c \
     src/roman.c \
@@ -40,6 +41,7 @@ HEADERS += \
     include/merge_intervals.h \
     include/num_sum_without_va.h \
     include/ocr.h \
+    include/queue.h \
     include/regexp.h \
     include/search_string.h \
     include/roman.h \

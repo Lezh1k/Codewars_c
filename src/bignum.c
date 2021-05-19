@@ -7,10 +7,11 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include "bignum.h"
+#include "commons.h"
+
 
 static uint32_t str2ui(const char *str, uint32_t len);
 static uint32_t powi(uint32_t base, uint32_t exp);
-static int32_t nearest_power_of_2(int32_t v);
 
 static void bn_increase_len(bn_t *p, int32_t l);
 static bn_t bn_part(const bn_t *src, int32_t start, int32_t len);
@@ -247,17 +248,6 @@ bn_t bn_mul_naive(const bn_t *l, const bn_t *r) {
   return res;
 }
 ///////////////////////////////////////////////////////
-
-int32_t nearest_power_of_2(int32_t v) {
-  --v;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-  return ++v;
-}
-//////////////////////////////////////////////////////////////////////////
 
 void bn_increase_len(bn_t *p, int32_t l) {
   assert(p->len <= l);

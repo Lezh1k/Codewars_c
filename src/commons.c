@@ -57,3 +57,30 @@ int32_t leading_zeros_32_bi(uint32_t v) {
   return __builtin_clz(v);
 }
 ///////////////////////////////////////////////////////
+
+uint32_t nearest_power_of_2(uint32_t v) {
+  --v;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  return ++v;
+}
+//////////////////////////////////////////////////////////////
+
+void
+array_shift(uint8_t *arr,
+            int N,
+            bool to_left) {
+  int s = to_left ? 0 : N-1;
+  int e = (N-1) - s;
+  int di = to_left ? 1 : -1;
+
+  uint8_t stored = arr[s];
+  for (int i = s; i != e; i += di) {
+    arr[i] = arr[i + di];
+  }
+  arr[s] = stored || arr[s] ? 1 : 0;
+  arr[e] = 0;
+}
