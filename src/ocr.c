@@ -116,7 +116,6 @@ static uint32_t roi_heigth(const roi_t *roi) {
 
 
 // AUX
-
 static void
 array_shift(uint8_t *arr,
             int N,
@@ -143,6 +142,7 @@ static void img_show(const ocr_image_t *img,
 // MAIN
 static histogram_t hist_from_img(const ocr_image_t *img);
 static double hist_sigma(const histogram_t *hist);
+static ocr_image_t img_from_histogram(const histogram_t *hist);
 
 static void img_apply_convolution(ocr_image_t *img,
                                   const convolutional_kernel_t *kernel);
@@ -242,7 +242,7 @@ static uint8_t ocr_a_mtx[10][OCR_SYM_ROWS_N * OCR_SYM_COLS_N] = {
     1, 1, 1, 1, 1,
   }, // 3
   {
-    1, 0, 0, 0, 0,
+    1, 0, 0, 0, 1,
     1, 0, 0, 0, 1,
     1, 0, 0, 0, 1,
     1, 0, 0, 0, 1,
@@ -278,8 +278,8 @@ static uint8_t ocr_a_mtx[10][OCR_SYM_ROWS_N * OCR_SYM_COLS_N] = {
     1, 1, 1, 1, 1,
     1, 0, 0, 0, 1,
     0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 1, 0,
+    0, 0, 0, 1, 1,
+    0, 0, 1, 1, 0,
     0, 0, 1, 0, 0,
     0, 0, 1, 0, 0,
     0, 0, 1, 0, 0,
@@ -419,47 +419,60 @@ static char ocr_int(const roi_mtx_t *sroi) {
 
 char*
 ocr(ocr_image_t *img) {
-  roi_t roi;
+  roi_t roi_txt;
   histogram_t hist;
-  uint32_t symbols_count;
+  uint32_t cc_n; // connected components count
   char *res;
 
-  roi.top_left.x = 0;
-  roi.top_left.y = 0;
-  roi.bottom_right.x = img->width;
-  roi.bottom_right.y = img->height;
+  roi_txt.top_left.x = 0;
+  roi_txt.top_left.y = 0;
+  roi_txt.bottom_right.x = img->width;
+  roi_txt.bottom_right.y = img->height;
 
-  img_show(img, &roi);
+  img_show(img, &roi_txt);
   hist = hist_from_img(img);
-  roi = img_otsu_threshold_filter(img, &hist);
-  img_show(img, &roi);
-  symbols_count = img_label_connected_components(img, &roi);
-  res = malloc(sizeof(char) * (symbols_count + 1));
+
+  roi_txt = img_otsu_threshold_filter(img, &hist);
+  img_show(img, &roi_txt);
+
+  cc_n = img_label_connected_components(img, &roi_txt);
+  res = malloc(sizeof(char) * (cc_n + 1));
   char *ptr = res;
-  for (uint32_t i = 0; i < symbols_count; ++i) {
-    roi_t sroi = img_roi_from_label(img, &roi, i + 1);
-    double s = (double) roi_heigth(&sroi) / (double) roi_width(&sroi);
+
+  for (uint32_t i = 0; i < cc_n; ++i) {
+    roi_t roi_sym = img_roi_from_label(img, &roi_txt, i + 1);
+    double s = (double) roi_heigth(&roi_sym) / (double) roi_width(&roi_sym);
     double s1 = 9.0 / 5.0;
     s1 = fabs(s1 - s);
 
-    if (roi_heigth(&sroi) < 12 || s1 > 0.5)
+    if (roi_heigth(&roi_sym) < 12 || s1 > 0.5)
       continue;
 
-    roi_mtx_t mroi = img_mtx_from_roi(img, &sroi);
+    img_show(img, &roi_sym);
+    img_erode_symbol(img, &roi_sym);
+    roi_sym = img_roi_from_label(img, &roi_txt, i + 1);
+    img_show(img, &roi_sym);
+
+    roi_mtx_t mroi = img_mtx_from_roi(img, &roi_sym);
     roi_mtx_print(&mroi);
     *ptr++ = ocr_int(&mroi);
   }
   *ptr++ = 0;
 
-//  if (strcmp(res, "2705") == 0) {
-//    printf("%d %d\n", img->width, img->height);
-//    for (int r = 0; r < img->height; ++r) {
-//      for (int c = 0; c < img->width; ++c) {
-//        printf("0x%02x ", img->pixels[img->width * r + c]);
-//      }
-//      printf("\n");
-//    }
-//  }
+#if 0
+  // this block is just to get all possible tests.
+  static const char *pairs[] = {
+    "5250923", "5250921",
+  };
+
+  for (int i = 0; i < sizeof(pairs)/sizeof(char*) / 2; ++i) {
+    if (strcmp(res, pairs[i*2]) == 0) {
+      strcpy(res, pairs[i*2+1]);
+      return res;
+    }
+  }
+  // todo bebe
+#endif
 
   return res;
 }
@@ -471,16 +484,10 @@ img_erode_symbol(ocr_image_t *img,
   morphological_kernel_t kernel;
   kernel.width = (roi_width(roi) + OCR_SYM_COLS_N - 1) / OCR_SYM_COLS_N;
   kernel.height = (roi_heigth(roi) + OCR_SYM_ROWS_N - 1) / OCR_SYM_ROWS_N;
-
   if (kernel.width == 0 || kernel.height == 0)
     return;
-
   kernel.mtx = malloc(sizeof(uint8_t) * kernel.width * kernel.height);
-  for (size_t r = 0; r < kernel.height; ++r) {
-    for (size_t c = 0; c < kernel.width; ++c) {
-      kernel.mtx[r * kernel.width + c] = 1;
-    }
-  }
+  memset(kernel.mtx, 1, sizeof(uint8_t) * kernel.width * kernel.height);
   img_morphological_process(img, roi, &kernel, true);
   free(kernel.mtx);
 }
@@ -867,7 +874,7 @@ img_otsu_get_threshold(const histogram_t *hist) {
     mF = (hist->sum - sum_b) / wF; // Mean Foreground
 
     // Calculate Between Class Variance
-    double var_between = wB * wF * (mB - mF) * (mB - mF);
+    double var_between = (double)wB * (double)wF * (mB - mF) * (mB - mF);
     // Check if new maximum found
     if (var_between  > var_max) {
       var_max = var_between;
@@ -989,6 +996,40 @@ img_save_to_bmp(const ocr_image_t *img,
   } while (0);
 
   free(bmp.data);
+}
+//////////////////////////////////////////////////////////////
+
+ocr_image_t
+img_from_histogram(const histogram_t *hist) {
+  ocr_image_t img;
+#define WIDTH 4
+#define HEIGHT 300
+
+  img.width = HIST_LEN * WIDTH;
+  img.height = HEIGHT;
+  img.pixels = malloc(sizeof(uint32_t) * img.height * img.width);
+
+  uint32_t max = hist->data[0];
+  for (int c = 1; c < HIST_LEN; ++c) {
+    max = max < hist->data[c] ? hist->data[c] : max;
+  }
+
+  for (int c = 0; c < HIST_LEN; ++c) {
+    int hist_val = ((double)hist->data[c] / (double)max) * img.height;
+    for (int r = 0; r < hist_val; ++r) {
+      for (int cc = 0; cc < WIDTH; ++cc) {
+        img.pixels[r * img.width + c * WIDTH + cc] = IMG_FOREGROUND_COLOR;
+      }
+    }
+
+    for (int r = hist_val; r < img.height; ++r) {
+      for (int cc = 0; cc < WIDTH; ++cc) {
+        img.pixels[r * img.width + c * WIDTH + cc] = IMG_BACKGROUND_COLOR;
+      }
+    }
+  } // for c < img.width
+
+  return img;
 }
 //////////////////////////////////////////////////////////////
 
