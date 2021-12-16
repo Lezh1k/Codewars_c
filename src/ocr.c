@@ -158,6 +158,13 @@ static roi_t img_otsu_threshold_filter(ocr_image_t *img,
                                        const histogram_t *hist);
 static roi_t img_threshold_filter(ocr_image_t *img,
                                   uint32_t threshold);
+
+static double img_find_rotation_angle_rad(const ocr_image_t *img,
+                                      const roi_t *roi);
+static void img_rotate_roi(ocr_image_t *img,
+                            const roi_t *roi,
+                            double angle_rads);
+
 static uint32_t img_label_connected_components(ocr_image_t *img,
                                                const roi_t *roi);
 static void img_label_connected_components_int(ocr_image_t *img,
@@ -406,12 +413,11 @@ static char ocr_int(const roi_mtx_t *sroi) {
 
   max = max_i = 0;
   for (int32_t i = 0; i < 10; ++i) {
-    int32_t t;
     memcpy(templ.mtx, ocr_a_mtx[i], OCR_SYM_MTX_SIZE);
     for (int j = 0; dirs[j] != MD_LAST; ++j) {
       memcpy(cand.mtx, sroi->mtx, OCR_SYM_MTX_SIZE);
       roi_mtx_shift_inplace(&cand, dirs[j]);
-      t = roi_mtx_cmp_with_ocr_a(&cand, &templ);
+      int32_t t = roi_mtx_cmp_with_ocr_a(&cand, &templ);
       if (t <= max)
         continue;
       max = t;
@@ -444,6 +450,8 @@ ocr(ocr_image_t *img) {
   res = malloc(sizeof(char) * (cc_n + 1));
   char *ptr = res;
 
+  // TODO WROTATE IMAGE!!!
+
   for (uint32_t i = 0; i < cc_n; ++i) {
     roi_t roi_sym = img_roi_from_label(img, &roi_txt, i + 1);
     double s = (double) roi_heigth(&roi_sym) / (double) roi_width(&roi_sym);
@@ -452,8 +460,6 @@ ocr(ocr_image_t *img) {
 
     if (roi_heigth(&roi_sym) < 12 || s1 > 0.5)
       continue;
-
-    // TODO ROTATE IMAGE!!!
 
     img_erode_symbol(img, &roi_sym);
     roi_sym = img_roi_from_label(img, &roi_txt, i + 1);
@@ -464,30 +470,8 @@ ocr(ocr_image_t *img) {
   *ptr++ = 0;
 
 #if 0
-  // this block is just to get all possible tests.
   static const char *pairs[] = {
-    "63694963892369696343", "63694963892369696143",
-    "438167432109296539", "438167432109296509",
-    "27676763499101690703", "27676763494101690703",
-    "036949276421", "036949276921",
-    "870506892589", "870505892589",
-    "636983690361", "636983690161",
-    "4347616945656309", "4347616945656109",
-    "498365478347810791", "498365478347810741",
-    "0309", "0305",
-    "014767454731", "014767454701",
-    "21896129698109252103", "21856129698109252103",
-    "8707036905690761255", "87070369056907612525",
-    "6905679103474569", "6905674183474569",
-    "24", "29",
-    "23694349274589092549", "23694345274589092549",
-    "27070107252799016769", "27070107252749016769",
-    "63294707014903859741", "63294707014903854741",
-    "4349636922", "4349636923",
-    "4125432103430163", "4185432103450163",
-    "25492969", "25498969",
-    "112", "105",
-    "139", "129",
+     "139", "129",
   };
 
   for (int i = 0; i < sizeof(pairs)/sizeof(char*) / 2; ++i) {
@@ -496,7 +480,6 @@ ocr(ocr_image_t *img) {
       return res;
     }
   }
-  // todo bebe
 #endif
 
   return res;
@@ -507,16 +490,27 @@ void
 img_erode_symbol(ocr_image_t *img,
                  const roi_t *roi) {
   morphological_kernel_t kernel;
-//  kernel.width = (roi_width(roi) + OCR_SYM_COLS_N - 1) / OCR_SYM_COLS_N;
-//  kernel.height = (roi_heigth(roi) + OCR_SYM_ROWS_N - 1) / OCR_SYM_ROWS_N;
-  kernel.width = (size_t) round((double) roi_width(roi) / OCR_SYM_COLS_N);
-  kernel.height = (size_t) round((double) roi_heigth(roi) / OCR_SYM_ROWS_N);
+  kernel.width = (roi_width(roi) + OCR_SYM_COLS_N - 1) / OCR_SYM_COLS_N;
+  kernel.height = (roi_heigth(roi) + OCR_SYM_ROWS_N - 1) / OCR_SYM_ROWS_N;
   if (kernel.width < 2 || kernel.height < 2)
     return;
   kernel.mtx = malloc(sizeof(uint8_t) * kernel.width * kernel.height);
   memset(kernel.mtx, 1, sizeof(uint8_t) * kernel.width * kernel.height);
   img_morphological_process_fit(img, roi, &kernel);
   free(kernel.mtx);
+}
+//////////////////////////////////////////////////////////////
+
+void img_rotate_roi(ocr_image_t *img,
+                     const roi_t *roi,
+                     double angle_rads) {
+
+}
+//////////////////////////////////////////////////////////////
+
+double img_find_rotation_angle_rad(const ocr_image_t *img,
+                                   const roi_t *roi) {
+  return M_2_PI; //return something real
 }
 //////////////////////////////////////////////////////////////
 
@@ -1010,7 +1004,6 @@ img_save_to_bmp(const ocr_image_t *img,
                 const roi_t *roi,
                 const char *dst_path) {
   bmp_data_t bmp = img_to_bmp_data(img, roi);
-  FILE *f;
 
   if (bmp.data == NULL || bmp.size == 0) {
     printf("failed to convert image into bmp");
@@ -1018,7 +1011,7 @@ img_save_to_bmp(const ocr_image_t *img,
   }
 
   do {
-    f = fopen(dst_path, "w");
+    FILE *f = fopen(dst_path, "w");
     if (f == NULL) {
       perror("failed to open file for writing");
       break;
@@ -1070,9 +1063,7 @@ ocr_image_t
 ocr_img_from_file(const char *path,
                   bool *err) {
   char buff[0xff] = {0};
-  char *tmp, c;
   ocr_image_t res = {0};
-  uint32_t *ptr_pixels;
   FILE *f = fopen(path, "r");
 
   *err = true;
@@ -1098,8 +1089,9 @@ ocr_img_from_file(const char *path,
       break;
     }
 
-    tmp = buff;
-    ptr_pixels = res.pixels;
+    char *tmp = buff;
+    uint32_t *ptr_pixels = res.pixels;
+    char c;
     while((c = fgetc(f)) != EOF) {
       if (!isspace(c)) {
         *tmp++ = c;

@@ -4,6 +4,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include "ocr.h"
 
 int
@@ -13,7 +16,7 @@ main(int argc,
   (void)argv;
 
   bool fail;
-  ocr_image_t img = ocr_img_from_file("/home/lezh1k/tst.data", &fail);
+  ocr_image_t img = ocr_img_from_file("/home/lezh1k/SRC/test_data/Codewars_OCR/0.tst", &fail);
   if (fail) {
     printf("HOHOH");
     return -1;
