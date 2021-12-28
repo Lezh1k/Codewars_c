@@ -165,7 +165,7 @@ int thandler_plus(context_t *ctx) {
 
 int thandler_coma(context_t *ctx){
   add_indent(ctx);
-  ctx->dst += sprintf(ctx->dst, coma_fmt);
+  ctx->dst += sprintf(ctx->dst, "%s", coma_fmt);
   *ctx->dst=0;
   return 0;
 }
@@ -184,7 +184,7 @@ int thandler_minus(context_t *ctx){
 
 int thandler_point(context_t *ctx){
   add_indent(ctx);
-  ctx->dst += sprintf(ctx->dst, point_fmt);
+  ctx->dst += sprintf(ctx->dst, "%s", point_fmt);
   *ctx->dst=0;
   return 0;
 }
@@ -215,7 +215,7 @@ int thandler_rarr(context_t *ctx){
 int thandler_lbr(context_t *ctx){
   add_indent(ctx);
   ++ctx->indent_level;
-  ctx->dst += sprintf(ctx->dst, lbr_fmt);
+  ctx->dst += sprintf(ctx->dst, "%s", lbr_fmt);
   *ctx->dst=0;
   return 0;
 }
@@ -224,7 +224,7 @@ int thandler_lbr(context_t *ctx){
 int thandler_rbr(context_t *ctx){
   --ctx->indent_level;
   add_indent(ctx);
-  ctx->dst += sprintf(ctx->dst, rbr_fmt);
+  ctx->dst += sprintf(ctx->dst, "%s", rbr_fmt);
   *ctx->dst=0;
   return 0;
 }

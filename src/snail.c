@@ -19,7 +19,7 @@ snail(size_t *outsz,
   int cx, cy;
   cy = cx = 0;
 
-  for (int c = 0; c < *outsz;) {
+  for (size_t c = 0; c < *outsz;) {
     int l = cx;
     int u = cy;
 

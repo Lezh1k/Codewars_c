@@ -189,15 +189,3 @@ parseRegExp(const char *input) {
   return NULL;
 }
 ///////////////////////////////////////////////////////
-
-RegExp *any(){return NULL;}
-
-RegExp *normal(char c){return NULL;}
-
-RegExp *zeroOrMore(RegExp *starred){return NULL;}
-
-RegExp *orfn(RegExp *left, RegExp *right){return NULL;}
-
-RegExp *str(RegExp *first){return NULL;}
-
-RegExp *add(RegExp *str, RegExp *next){return NULL;}

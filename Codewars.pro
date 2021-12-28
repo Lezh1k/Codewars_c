@@ -3,7 +3,8 @@ CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
 
-QMAKE_CFLAGS += -std=gnu11
+QMAKE_CFLAGS += -std=c17
+DEFINES += __STDC_WANT_LIB_EXT1__=1
 LIBS += -lm -lpthread
 
 INCLUDEPATH += include \
@@ -12,6 +13,7 @@ INCLUDEPATH += include \
 SOURCES += \
     src/bignum.c \
     src/central_attention.c \
+    src/gol.c \
     src/list.c \
     src/main.c \
     src/brainfuck.c \
@@ -37,6 +39,7 @@ HEADERS += \
     include/bignum.h \
     include/brainfuck.h \
     include/central_attention.h \
+    include/gol.h \
     include/list.h \
     include/merge_intervals.h \
     include/num_sum_without_va.h \

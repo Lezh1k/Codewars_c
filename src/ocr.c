@@ -17,6 +17,11 @@
 #define IMG_FOREGROUND_COLOR 0x00
 #define BMP_SIGNATURE (0x4d42)
 
+// for C11
+#ifndef M_2_PI
+#define M_2_PI 0.636619772367581343075535053490057448
+#endif
+
 /* 1 = monochrome palette. NumColors = 1
  * 4 = 4bit palletized. NumColors = 16
  * 8 = 8bit palletized. NumColors = 256
@@ -138,10 +143,9 @@ static bmp_data_t img_to_bmp_data(const ocr_image_t *img,
 static void img_save_to_bmp(const ocr_image_t *img,
                             const roi_t *roi,
                             const char *dst_path);
-static void img_show(const ocr_image_t *img,
-                     const roi_t *roi);
+static void img_show(const ocr_image_t *img, const roi_t *roi);
 static void img_dump(const ocr_image_t *img,
-                     const roi_t *roi);
+                     const roi_t *roi) __attribute_used__;
 
 // MAIN
 static histogram_t hist_from_img(const ocr_image_t *img);
@@ -158,12 +162,6 @@ static roi_t img_otsu_threshold_filter(ocr_image_t *img,
                                        const histogram_t *hist);
 static roi_t img_threshold_filter(ocr_image_t *img,
                                   uint32_t threshold);
-
-static double img_find_rotation_angle_rad(const ocr_image_t *img,
-                                      const roi_t *roi);
-static void img_rotate_roi(ocr_image_t *img,
-                            const roi_t *roi,
-                            double angle_rads);
 
 static uint32_t img_label_connected_components(ocr_image_t *img,
                                                const roi_t *roi);
@@ -347,19 +345,19 @@ roi_mtx_shift_inplace(roi_mtx_t *src,
     case MD_LEFT_UP:
       roi_mtx_shift_inplace(src, MD_LEFT);
       roi_mtx_shift_inplace(src, MD_UP);
-      break;
+      return;
     case MD_LEFT_DOWN:
       roi_mtx_shift_inplace(src, MD_LEFT);
       roi_mtx_shift_inplace(src, MD_DOWN);
-      break;
+      return;
     case MD_RIGHT_UP:
       roi_mtx_shift_inplace(src, MD_RIGHT);
       roi_mtx_shift_inplace(src, MD_UP);
-      break;
+      return;
     case MD_RIGHT_DOWN:
       roi_mtx_shift_inplace(src, MD_RIGHT);
       roi_mtx_shift_inplace(src, MD_DOWN);
-      break;
+      return;
     default:
       break;
   }
@@ -498,19 +496,6 @@ img_erode_symbol(ocr_image_t *img,
   memset(kernel.mtx, 1, sizeof(uint8_t) * kernel.width * kernel.height);
   img_morphological_process_fit(img, roi, &kernel);
   free(kernel.mtx);
-}
-//////////////////////////////////////////////////////////////
-
-void img_rotate_roi(ocr_image_t *img,
-                     const roi_t *roi,
-                     double angle_rads) {
-
-}
-//////////////////////////////////////////////////////////////
-
-double img_find_rotation_angle_rad(const ocr_image_t *img,
-                                   const roi_t *roi) {
-  return M_2_PI; //return something real
 }
 //////////////////////////////////////////////////////////////
 
