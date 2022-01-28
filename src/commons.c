@@ -73,14 +73,27 @@ void
 array_shift(uint8_t *arr,
             int N,
             bool to_left) {
-  int s = to_left ? 0 : N-1;
-  int e = (N-1) - s;
-  int di = to_left ? 1 : -1;
-
+  int s = to_left ? 0 : N - 1; //start
+  int e = (N - 1) - s; //end
+  int di = to_left ? 1 : -1;//delta i
   uint8_t stored = arr[s];
   for (int i = s; i != e; i += di) {
     arr[i] = arr[i + di];
   }
   arr[s] = stored || arr[s] ? 1 : 0;
-  arr[e] = 0;
+  arr[e] = arr[e - di];
 }
+//////////////////////////////////////////////////////////////
+
+uint32_t log_of_power_2(uint32_t v) {
+  uint32_t c = 32; // c will be the number of zero bits on the right
+  v &= (uint32_t)(-(int32_t)v); //set's least significant bit...
+  if (v) --c;
+  if (v & 0x0000FFFF) c -= 16;
+  if (v & 0x00FF00FF) c -= 8;
+  if (v & 0x0F0F0F0F) c -= 4;
+  if (v & 0x33333333) c -= 2;
+  if (v & 0x55555555) c -= 1;
+  return c;
+}
+//////////////////////////////////////////////////////////////////////////
