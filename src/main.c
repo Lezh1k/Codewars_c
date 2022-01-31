@@ -31,14 +31,14 @@ main(int argc, char *argv[]) {
   (void)argv;
 
   const char *paths[] = {
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/141.tst", "141",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/8.tst", "8",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/27676763494101690703.tst", "27676763494101690703",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/45.tst", "45",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/49094789.tst", "49094789",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/63694963892369696143.tst", "63694963892369696143",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/036949276921.tst", "036949276921",
-//    "/home/lezh1k/SRC/test_data/Codewars_OCR/856505614165690145.tst", "856505614165690145",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/141.tst", "141",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/8.tst", "8",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/27676763494101690703.tst", "27676763494101690703",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/45.tst", "45",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/49094789.tst", "49094789",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/63694963892369696143.tst", "63694963892369696143",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/036949276921.tst", "036949276921",
+    "/home/lezh1k/SRC/test_data/Codewars_OCR/856505614165690145.tst", "856505614165690145",
     "/home/lezh1k/SRC/test_data/Codewars_OCR/052727094565054505.tst", "052727094565054505",
     NULL,
   };

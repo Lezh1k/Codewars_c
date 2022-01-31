@@ -13,7 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DEBUG_IMG_SHOW 1
+#define DEBUG_IMG_SHOW 0
 #define IMG_COLOR_BACKGROUND 0xFF
 #define IMG_COLOR_FOREGROUND 0x00
 
@@ -226,12 +226,13 @@ ocr_image_t img_scale(const ocr_image_t img,
   double scale_r = (double)res.height / img.height;
 
   for (int r = 0; r < res.height; ++r) {
-    int nearest_r = round(r / scale_r);
+    int nearest_r = floor(r / scale_r);
     if (nearest_r >= img.height)
       continue;
 
     for (int c = 0; c < res.width; ++c) {
-      int nearest_c = round(c / scale_c);
+
+      int nearest_c = floor(c / scale_c);
       int pixel = img.pixels[nearest_r * img.width + nearest_c];
       if (nearest_c >= img.width)
         pixel = img.pixels[nearest_r * img.width + nearest_c - 1];
@@ -259,12 +260,6 @@ static int ocr_img_cmp(const ocr_image_t *img1,
   // todo scale instead of assertion
   assert(roi1_w == roi2_w);
   assert(roi1_h == roi2_h);
-
-//  printf("templ:\n");
-//  roi_img_print_data(img1, roi1);
-//  printf("\nval:\n");
-//  roi_img_print_data(img2, roi2);
-//  printf("*******\n");
 
   int sum = 0;
   for (int r = 0; r < roi1_h; ++r) {
@@ -328,16 +323,16 @@ char ocr_int(const ocr_image_t *img,
   r.bottom_right.y = scaled_templ.height - 1;
 
 
-  for (int i = 0; i < 10; ++i) {
-    printf("%03d ", lst_max[i]);
-  }
-  printf("\n");
+//  for (int i = 0; i < 10; ++i) {
+//    printf("%03d ", lst_max[i]);
+//  }
+//  printf("\n");
 
-  printf("\ntempl:\n");
-  roi_img_print_data(&scaled_templ, &r);
-  printf("\nval:\n");
-  roi_img_print_data(img, roi_sym);
-  printf("*******\n");
+//  printf("\ntempl:\n");
+//  roi_img_print_data(&scaled_templ, &r);
+//  printf("\nval:\n");
+//  roi_img_print_data(img, roi_sym);
+//  printf("*******\n");
 
   ocr_img_free(&scaled_templ);
 
