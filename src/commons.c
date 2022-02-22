@@ -97,3 +97,19 @@ uint32_t log_of_power_2(uint32_t v) {
   return c;
 }
 //////////////////////////////////////////////////////////////////////////
+
+void bit_comb(uint32_t pool,
+              uint32_t need,
+              uint32_t chosen,
+              uint32_t at,
+              void (*cb)(uint32_t)) {
+  if (pool < need + at)
+    return;
+  if (need == 0) { // full combination
+    if (cb) cb(chosen);
+    return;
+  }
+
+  bit_comb(pool, need-1, chosen | (1 << at), at + 1, cb);
+  bit_comb(pool, need, chosen, at + 1, cb);
+}

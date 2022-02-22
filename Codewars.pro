@@ -14,6 +14,7 @@ SOURCES += \
     src/bignum.c \
     src/bmp.c \
     src/central_attention.c \
+    src/coins.c \
     src/fft.c \
     src/gol.c \
     src/list.c \
