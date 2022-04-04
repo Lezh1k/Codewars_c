@@ -20,6 +20,7 @@ SOURCES += \
     src/list.c \
     src/main.c \
     src/brainfuck.c \
+    src/math_expression.c \
     src/merge_intervals.c \
     src/num_sum_without_va.c \
     src/ocr.c \
@@ -36,6 +37,8 @@ SOURCES += \
     src/mul.s \
     src/skyscrapers.c \
     src/snail.c \
+    src/sourcemappings.c \
+    src/spiral.c \
     src/triangle.c \
     src/voronoi.c
 
@@ -46,6 +49,7 @@ HEADERS += \
     include/central_attention.h \
     include/gol.h \
     include/list.h \
+    include/math_expression.h \
     include/merge_intervals.h \
     include/num_sum_without_va.h \
     include/ocr.h \
@@ -60,5 +64,7 @@ HEADERS += \
     include/commons.h \
     include/skyscrapers.h \
     include/snail.h \
+    include/sourcemappings.h \
+    include/spiral.h \
     include/triangle.h \
     include/voronoi.h
