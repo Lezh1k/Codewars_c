@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-double calculate (const char *expression);
+double calculate(const char *expression);
 
 #endif // MATH_EXPRESSION_H

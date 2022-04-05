@@ -1,5 +1,6 @@
 #include "math_expression.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,7 +34,7 @@ static inline int tt_precedence(token_type_t tt) {
   return tt;
 }
 
-static inline const char *token_type_str(token_type_t tt) {
+static inline const char *tt_str(token_type_t tt) {
   static const char *strs[] = {
     "UND", "OPER", "ADD", "SUB",
     "MUL", "DIV", "NEG", "PAR_L", "PAR_R", "NUM"
@@ -44,18 +45,24 @@ static inline const char *token_type_str(token_type_t tt) {
 
 typedef struct token {
   const char *p_str;
-  size_t len;
+  int len;
   token_type_t type;
 } token_t;
 
 static inline bool token_is_empty(const token_t *t) {
   return t->p_str == NULL;
 }
+
+static double token_value(const token_t *t) {
+  assert(t->type == TT_NUM);
+  double res = 0.0;
+  sscanf(t->p_str, "%lf", &res);
+  return res;
+}
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-double calculate (const char *expression);
 static token_t *tokenize(const char *expression);
 static token_t *infix_to_postfix(const token_t *infix);
 static double calculate_postfix(const token_t *postfix);
@@ -84,17 +91,7 @@ calculate (const char *expression) {
     return 0.0;
   }
 
-  printf("\n***************\nINFIX:\n");
-  for (const token_t *t = lst_tokens; t && !token_is_empty(t); ++t) {
-    printf("%.*s : %s\n", (int)t->len, t->p_str, token_type_str(t->type));
-  }
-
-  printf("\n***************\nPOSTFIX:\n");
-
   token_t *postfix = infix_to_postfix(lst_tokens);
-  for (const token_t *t = postfix; t && !token_is_empty(t); ++t) {
-    printf("%.*s ", (int)t->len, t->p_str);
-  }
   double res = calculate_postfix(postfix);
   free(lst_tokens);
   free(postfix);
@@ -150,7 +147,7 @@ tokenize(const char *expression) {
       continue;
     }
 
-    perror("undefined token\n");
+    printf("undefined token %c\n", *c);
     exit(1);
   }
 
@@ -195,7 +192,8 @@ tokenize(const char *expression) {
 token_t *
 infix_to_postfix(const token_t *infix) {
   int len = 0;
-  for (const token_t *t = infix; !token_is_empty(t); ++t, ++len);
+  for (const token_t *t = infix; !token_is_empty(t); ++t)
+    ++len;
   if (len == 0) return NULL;
   token_t *stack = malloc(sizeof(token_t) * (len+1)); //for '(' at the beginning
   token_t *sp = stack; //stack pointer
@@ -205,7 +203,7 @@ infix_to_postfix(const token_t *infix) {
 #define st_empty() (sp == stack)
 #define st_peek() (sp-1)
 
-  token_t *postfix = malloc(sizeof(token_t) * len);
+  token_t *postfix = calloc(len, sizeof(token_t));
   token_t *out = postfix;
   token_t start_tok = {.len = 1, .p_str = "(", .type = TT_PAR_L};
 
@@ -253,13 +251,68 @@ infix_to_postfix(const token_t *infix) {
 #undef st_push
 #undef st_peek
 #undef st_pop
+#undef st_empty
 }
 //////////////////////////////////////////////////////////////
 
-double calculate_postfix(const token_t *postfix) {
-  double res = 0.0;
-  for (const token_t *t = postfix; !token_is_empty(t); ++t) {
+double
+calculate_postfix(const token_t *postfix) {
+  int len = 0;
+  for (const token_t *t = postfix; !token_is_empty(t); ++t, ++len);
+  if (len == 0)
+    return 0.0;
+  double *stack = malloc(sizeof(double) * len);
+  double *sp = stack; //stack pointer
 
+#define st_push(x) (*sp++ = x)
+#define st_pop() (*--sp)
+#define st_empty() (sp == stack)
+#define st_peek() (sp-1)
+
+  double arg1, arg2;
+  for (const token_t *t = postfix; !token_is_empty(t); ++t) {
+    if (t->type == TT_NUM) {
+      st_push(token_value(t));
+      continue;
+    }
+
+    switch (t->type) {
+      case TT_ADD:
+        arg1 = st_pop();
+        arg2 = st_pop();
+        st_push(arg2 + arg1);
+        break;
+      case TT_SUB:
+        arg1 = st_pop();
+        arg2 = st_pop();
+        st_push(arg2 - arg1);
+        break;
+      case TT_MUL:
+        arg1 = st_pop();
+        arg2 = st_pop();
+        st_push(arg2 * arg1);
+        break;
+      case TT_DIV:
+        arg1 = st_pop();
+        arg2 = st_pop();
+        st_push(arg2 / arg1);
+        break;
+      case TT_NEG:
+        arg2 = st_pop();
+        st_push(-arg2);
+        break;
+      default:
+        printf("wrong op type: %s\n", tt_str(t->type));
+        exit(1);
+    }
   }
+
+  double res = st_pop();
+  free(stack);
   return res;
+
+#undef st_push
+#undef st_peek
+#undef st_pop
+#undef st_empty
 }
