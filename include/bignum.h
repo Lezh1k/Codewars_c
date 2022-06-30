@@ -62,6 +62,8 @@ bn_t bn_sub(const bn_t *l, const bn_t *r);
 bn_t bn_mul_naive(const bn_t *l, const bn_t *r);
 bn_t bn_mul_karatsuba(bn_t *l, bn_t *r);
 
+bn_t bn_isqrt(const bn_t *val);
+
 bn_div_t bn_divmod_D(const bn_t *num, const bn_t *den);
 
 #endif // KARATSUBA_H

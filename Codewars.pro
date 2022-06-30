@@ -22,6 +22,7 @@ SOURCES += \
     src/brainfuck.c \
     src/math_expression.c \
     src/merge_intervals.c \
+    src/next_smaller_number.c \
     src/num_sum_without_va.c \
     src/ocr.c \
     src/ocr_obsolete.c \
@@ -51,6 +52,7 @@ HEADERS += \
     include/list.h \
     include/math_expression.h \
     include/merge_intervals.h \
+    include/next_smaller_number.h \
     include/num_sum_without_va.h \
     include/ocr.h \
     include/queue.h \

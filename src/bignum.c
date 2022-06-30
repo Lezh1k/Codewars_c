@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include "bignum.h"
-#include "commons.h"
 
 
 static uint32_t str2ui(const char *str, uint32_t len);
@@ -534,3 +533,40 @@ void bn_scale_inplace(bn_t *p, int32_t s) {
   }
 }
 ///////////////////////////////////////////////////////
+
+bn_t bn_isqrt(const bn_t *y) {
+  bn_t one = bn_from_str("1");
+  bn_t two = bn_from_str("2");
+
+  bn_t L = bn_from_str("0");
+  bn_t R = bn_sum(y, &one);
+  bn_t M;
+
+  while( true ) {
+    bn_t R_dec = bn_sub(&R, &one);
+    if (bn_cmp(&L, &R_dec, false) == 0) {
+      bn_free(&R_dec);
+      break;
+    }
+    bn_t LR = bn_sum(&L, &R);
+    bn_div_t dm = bn_divmod_D(&LR, &two);
+    M = bn_copy(&dm.quot);
+
+    bn_t MM = bn_mul_karatsuba(&M, &M);
+    if (bn_cmp(&MM, y, false) <= 0)
+      L = M;
+    else
+      R = M;
+
+    bn_free(&R_dec);
+    bn_free(&LR);
+    bn_free(&dm.quot);
+    bn_free(&dm.rem);
+    bn_free(&MM);
+  }
+  bn_free(&R);
+  bn_free(&one);
+  bn_free(&two);
+  return L;
+}
+//////////////////////////////////////////////////////////////
