@@ -4,8 +4,10 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 QMAKE_CFLAGS += -std=gnu17
-DEFINES += __STDC_WANT_LIB_EXT1__=1
+DEFINES += __STDC_WANT_LIB_EXT1__=1 \
+    SECONDS_TO_00=$$system(./seconds_to_00.sh)
 LIBS += -lm -lpthread
+
 
 INCLUDEPATH += include \
     /usr/include/ImageMagick-7/ \
@@ -17,7 +19,7 @@ SOURCES += \
     src/coins.c \
     src/fft.c \
     src/gol.c \
-    src/list.c \
+    src/lcs.c \
     src/main.c \
     src/brainfuck.c \
     src/math_expression.c \
@@ -49,7 +51,7 @@ HEADERS += \
     include/brainfuck.h \
     include/central_attention.h \
     include/gol.h \
-    include/list.h \
+    include/lcs.h \
     include/math_expression.h \
     include/merge_intervals.h \
     include/next_smaller_number.h \

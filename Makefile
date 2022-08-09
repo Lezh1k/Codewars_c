@@ -1,10 +1,7 @@
-#CC=gcc
-CC=clang
+CC=gcc
+#CC=clang
 AS=as
 LD=ld
-OBJDUMP=objdump
-OBJCOPY=objcopy
-SIZE=size
 LINK=$(CC)
 
 BUILD_DIR=build
@@ -17,12 +14,14 @@ WARN_LEVEL = -Wall -Wextra -pedantic
 
 PRG = codewars
 INCLUDES = -Iinclude
-CFLAGS := $(INCLUDES) $(DEFS) $(WARN_LEVEL) -pipe -O0 -g3 -std=c11
+CFLAGS := $(INCLUDES) $(DEFS) $(WARN_LEVEL) -pipe -O0 -g3 -std=c11 
 debug: CFLAGS += -O0 -g3
 debug: all
 release: CFLAGS += -O2
 release: all
-LDFLAGS = $(LIBS) -ffunction-sections -Wl,--gc-sections
+
+LD_SEC_TO_00 := -Xlinker --defsym -Xlinker __SEC_TO_00=$(shell date +'%Y%m%d')
+LDFLAGS = $(LD_SEC_TO_00) $(LIBS) #-ffunction-sections -Wl,--gc-sections
 
 SRC_C := $(wildcard *.c) $(wildcard src/*.c)
 SRC_A := $(wildcard src/*.s)
@@ -32,7 +31,7 @@ OBJECTS += $(SRC_A:%.s=$(OBJ_DIR)/%.o)
 
 all: directories $(PRG)
 
-$(PRG): $(BIN_DIR)/$(PRG) $(BIN_DIR)/$(PRG).lst
+$(PRG): $(BIN_DIR)/$(PRG) 
 	
 $(OBJ_DIR)/%.o: %.s
 	@mkdir -p $(@D)
@@ -45,11 +44,6 @@ $(OBJ_DIR)/%.o: %.c
 $(BIN_DIR)/$(PRG): $(OBJECTS)
 	@mkdir -p $(@D)
 	$(LINK) -o $(BIN_DIR)/$(PRG).elf $^ $(LDFLAGS) $(LIBS)
-
-$(BIN_DIR)/lst: $(BIN_DIR)/$(PRG).lst
-$(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
-	@mkdir -p $(@D)
-	$(OBJDUMP) -h -S $< > $@
 
 .PHONY: directories
 directories:
