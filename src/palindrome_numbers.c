@@ -28,7 +28,7 @@ ull_t find_reverse_number(ull_t n) {
   char *str = ull_to_str(n, buff);
   ul_t slen = strlen(str);
 
-  if (*str != '1' || (*str == '1' && slen >= 2 && str[1] == '0')) {
+  if (*str != '1' || (*str == '1' && str[1] == '0')) {
     if (--(*str) == '0') {
       *++str = '9';
       --slen;
