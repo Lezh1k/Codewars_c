@@ -13,7 +13,7 @@ DEFS := -D_USE_MATH_DEFINES
 WARN_LEVEL = -Wall -Wextra -pedantic
 
 PRG = codewars
-INCLUDES = -Iinclude
+INCLUDES = -Iinc
 CFLAGS := $(INCLUDES) $(DEFS) $(WARN_LEVEL) -pipe -std=gnu18
 debug: CFLAGS += -O0 -ggdb
 debug: all
