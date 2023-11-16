@@ -4,26 +4,27 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "parse_int.h"
+#include "spinning_rings.h"
+
 
 int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
-  const char *tst_strings[] = {
-      "six hundred sixty-six thousand six hundred sixty-six",
-      "four",
-      "seven",
-      "twenty-one thousand five hundred and nineteen",
-      "thirty-two hundred thousand three",
-      "two hundred thousand",
-      NULL};
 
-  for (const char **str = tst_strings; *str; ++str) {
-    long num = parse_int(*str);
-    printf("%s => %ld\n", *str, num);
-    printf("***************\n");
-  }
-  // parse_int("twenty one");
+  // basic tests
+  dotest(2, 2, 3);
+  dotest(5, 5, 3);
+  dotest(2, 10, 13);
+  dotest(10, 2, 10);
+  dotest(7, 9, 4);
+  dotest(1, 1, 1);
+  dotest(16777216, 14348907, 23951671);
+
+  // random tests
+  dotest(7571, 3580, 7367);
+
+  printf("%lld\n", spinning_rings(88399884230861, 62348759298410));
+  printf("%lld\n", spinning_rings(92761874409660, 159281049706940));
   return 0;
 }
 //////////////////////////////////////////////////////////////
