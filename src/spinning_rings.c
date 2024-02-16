@@ -1,4 +1,5 @@
 #include "spinning_rings.h"
+#include <stdio.h>
 typedef unsigned long long ull;
 
 ull spinning_rings(ull inner_max, ull outer_max) {

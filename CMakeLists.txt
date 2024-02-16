@@ -32,6 +32,7 @@ set(warning_level -Wall -Wextra -pedantic)
 set(cflags -pipe -O0 -g -std=gnu18)
 target_compile_options(codewars_c PUBLIC ${warning_level} ${cflags})
 target_link_libraries(codewars_c m) # math library
+
 # This copies all resource files in the build directory.
 # We need this, because we want to work with paths relative to the executable.
 file(COPY ${data} DESTINATION resources)
