@@ -1,22 +1,32 @@
-#include "bin_heap.h"
+#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 
-typedef struct timer_event {
-  bh_node_t bh_node;
-  uint32_t dst_tick;
-} timer_event_t;
+#define FILL_CHAR_EMPTY -1
+char *str_u8_n(uint8_t val, char *buff, uint8_t n, char fill_char)
+{
+  assert(n);
+  buff += --n;
+  *buff-- = 0;
 
-int8_t cmp_te(const bh_node_t *l, const bh_node_t *r) {
-  timer_event_t *te_l = (timer_event_t *)l;
-  timer_event_t *te_r = (timer_event_t *)r;
-  if (te_l->dst_tick < te_r->dst_tick)
-    return -1;
-  return 1;
-}
+  if (val == 0) {
+    *buff-- = '0';
+    --n;
+  }
 
-void print_te(const bh_node_t *node) {
-  const timer_event_t *pte = (const timer_event_t *)node;
-  printf("%d", pte->dst_tick);
+  while (val && n--) {
+    *buff-- = '0' + (val % 10);
+    val /= 10;
+  }
+
+  if (fill_char == FILL_CHAR_EMPTY)
+    return ++buff;
+
+  while (n--) {
+    *buff-- = fill_char;
+  }
+
+  return ++buff;
 }
 //////////////////////////////////////////////////////////////
 
@@ -24,16 +34,12 @@ int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
 
-  bheap_t *bh = bheap(15, cmp_te);
-  timer_event_t tes[25] = {0};
-  for (size_t i = 0; i < sizeof(tes) / sizeof(timer_event_t); ++i) {
-    tes[i].dst_tick = i;
-    bh_insert(bh, (bh_node_t *)&tes[i]);
-  }
-  bh_print(bh, print_te);
-  printf("************\n");
+  char buff[3] = {0};
+  printf("%p\n, %c\n", (void*)buff, *buff);
+  char *s = str_u8_n(12, buff, 3, '0');
+  printf("%s\n", s);
+  printf("%p\n, %c\n", (void*)buff, *buff);
 
-  bh_free(bh);
   return 0;
 }
 //////////////////////////////////////////////////////////////
