@@ -12,7 +12,7 @@ struct queue {
 
 queue_t *
 queue_create(uint32_t min_size) {
-  min_size = nearest_power_of_2(min_size);
+  min_size = nearest_power_of_2_u32(min_size);
   queue_t *q = malloc(sizeof(queue_t));
   if (q == NULL) {
     return NULL;

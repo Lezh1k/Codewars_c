@@ -28,7 +28,7 @@ typedef struct field {
 } field_t;
 //////////////////////////////////////////////////////////////
 
-int **get_generation(int32_t **cells, int32_t generations, int32_t *ptr_r,
+int **get_generation(const int32_t **cells, int32_t generations, int32_t *ptr_r,
                      int32_t *ptr_c);
 
 static field_t game_create(const int32_t **cells, int32_t rows, int32_t cols);
@@ -54,7 +54,7 @@ static void game_print_field(const field_t *f) {
 //////////////////////////////////////////////////////////////
 #endif
 
-int **get_generation(int32_t **cells, int32_t generations, int32_t *ptr_r,
+int **get_generation(const int32_t **cells, int32_t generations, int32_t *ptr_r,
                      int32_t *ptr_c) {
   field_t f = game_create(cells, *ptr_r, *ptr_c);
   game_print_field(&f);

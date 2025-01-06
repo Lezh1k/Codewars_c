@@ -39,6 +39,7 @@ typedef struct bn_div {
 bn_t bn_new(int32_t len, bn_sign_t sign);
 void bn_free(bn_t *p);
 bn_t bn_from_str(const char *str);
+bn_t bn_from_int(int32_t v);
 
 char *bn_to_str(const bn_t *p);
 void bn_print_raw(const bn_t *p);
