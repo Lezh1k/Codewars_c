@@ -1,33 +1,25 @@
 .intel_syntax noprefix
 .text
-.global barr4_char_idx
+.global zbyte_32_asm
 
 # Function prototype:
-# int barr4_char_idx(const char* array, char input_char);
+# extern int zbyte_32_asm(uint32_t x);
 
-barr4_char_idx:
-  # Input: rdi -> address of 4-byte array, 
-  # esi -> input_char
-  mov eax, [rdi]
-  mov ecx, esi
+zbyte_32_asm:
+  # Input: rdi -> input uint32_t
+  mov eax, edi
+  and eax, 0x7f7f7f7f
+  add eax, 0x7f7f7f7f
 
-  # broakcast character to make mask
-  mov edx, 0x01010101  
-  imul ecx, edx
+  or eax, edi
+  or eax, 0x7f7f7f7f
+  not eax
 
-  # xor with the mask. matched bytes should give 0x00. others - not null vals
-  xor eax, ecx
-  # TODO!
-  
-
-  # Extract match mask
-  and eax, 0x80808080  
-  jz not_found         
-
-  bsf eax, eax         # Find the first set bit
-  shr eax, 3           # Divide by 8 to get byte index
+  bsf eax, eax
+  jz not_found
+  shr eax, 3
   ret
 
 not_found:
-  mov eax, -1          # Return -1 if no match
+  mov eax, -1
   ret
