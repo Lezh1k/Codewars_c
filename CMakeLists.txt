@@ -18,7 +18,7 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
   message("Release build.")
 else()
   message("Some other build type. Setting up default = Release")
-  set(CMAKE_BUILD_TYPE Release)
+  set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 set(CMAKE_C_FLAGS_RELEASE "-O2")
