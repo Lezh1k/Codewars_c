@@ -100,7 +100,7 @@ void game_free(field_t *f) {
 void game_expand_field(field_t *f) {
   int32_t rows = f->rows * 2;
   int32_t cols = f->cols * 2;
-  cell_t *data = calloc(sizeof(cell_t), rows * cols);
+  cell_t *data = calloc(rows * cols, sizeof(cell_t));
 
   for (int32_t r = 0; r < f->rows; ++r) {
     int32_t dst_r = r + f->rows / 2;
@@ -144,7 +144,7 @@ void game_shrink_field(field_t *f) {
     rows = cols = 0; // HACK
     data = NULL;
   } else {
-    data = calloc(sizeof(cell_t), rows * cols);
+    data = calloc(rows * cols, sizeof(cell_t));
   }
 
   for (int32_t r = 0; r < rows; ++r) {
@@ -201,7 +201,7 @@ void game_iteration(field_t *f) {
     for (int32_t c = 1; c < f->cols - 1; ++c) {
       game_calc_cell_status(f, r, c);
     } // for cols
-  }   // for rows
+  } // for rows
 
   for (int32_t r = 0; r < f->rows; ++r) {
     cell_t *ptr_r = &f->data[r * f->cols];

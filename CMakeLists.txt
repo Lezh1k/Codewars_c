@@ -33,18 +33,29 @@ set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 file(GLOB_RECURSE sources      src/*.c src/*.s inc/*.h)
 file(GLOB_RECURSE sources_test tests/*.c)
 file(GLOB_RECURSE data resources/*)
-# You can use set(sources src/main.cpp) etc if you don't want to
-# use globbing to find files automatically.
+
+find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
+if (CMAKE_CXX_CPPCHECK)
+    list(
+        APPEND CMAKE_CXX_CPPCHECK 
+            "--enable=warning"
+            "--inconclusive"
+            "--force" 
+            "--inline-suppr"
+            "--suppressions-list=${CMAKE_SOURCE_DIR}/CppCheckSuppressions.txt"
+    )
+endif()
+
 ###############################################################################
 ## target definitions #########################################################
 ###############################################################################
 
-add_executable(codewars_c ${sources} ${data})
-target_include_directories(codewars_c PRIVATE inc)
+add_executable(${PROJECT_NAME} ${sources} ${data})
+target_include_directories(${PROJECT_NAME} PRIVATE inc)
 
 set(warning_level -Wall -Wextra -pedantic)
-target_compile_options(codewars_c PUBLIC ${warning_level})
-target_link_libraries(codewars_c m) 
+target_compile_options(${PROJECT_NAME} PUBLIC ${warning_level})
+target_link_libraries(${PROJECT_NAME} m) 
 
 # This copies all resource files in the build directory.
 # We need this, because we want to work with paths relative to the executable.
@@ -52,18 +63,18 @@ file(COPY ${data} DESTINATION resources)
 
 # All install commands get the same destination. this allows us to use paths
 # relative to the executable.
-install(TARGETS codewars_c DESTINATION codewars_c_destination)
+install(TARGETS ${PROJECT_NAME} DESTINATION ${PROJECT_NAME}_destination)
 
 # This is basically a repeat of the file copy instruction that copies the
 # resources in the build directory, but here we tell cmake that we want it
 # in the package.
-install(DIRECTORY resources DESTINATION codewars_c_destination)
+install(DIRECTORY resources DESTINATION ${PROJECT_NAME}_destination)
 
 # Now comes everything we need, to create a package
 # there are a lot more variables you can set, and some
 # you need to set for some package types, but we want to
 # be minimal here.
-set(CPACK_PACKAGE_NAME "codewars_c")
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "0.1.0")
 # We don't want to split our program up into several incomplete pieces.
 set(CPACK_MONOLITHIC_INSTALL 1)

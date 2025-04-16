@@ -52,7 +52,8 @@ bool fft(complex float *dat, int32_t N, int32_t LogN, bool inv) {
   for(n=1; n<=LogN; ++n) {
     //rw и iw - поворотный коэффициент для LogN.
     //w = -2.0 * M_PI / pow(2.0, n)
-    complex float w = {RCoef[LogN - n], ICoef[LogN - n]};
+    /* complex float w = {RCoef[LogN - n], ICoef[LogN - n]}; */
+    complex float w = RCoef[LogN - n] + ICoef[LogN - n] * I;
     if(inv)
       w = conj(w);
     in = ie >> 1; //in - середина... N/2 для каждого уровня.

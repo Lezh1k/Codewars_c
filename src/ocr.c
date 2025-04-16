@@ -1,5 +1,5 @@
-#include "bmp.h"
 #include "ocr.h"
+#include "bmp.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -47,180 +47,94 @@ static inline uint32_t roi_heigth(const roi_t *roi) {
   return (uint32_t)(roi->bottom_right.y - roi->top_left.y + 1); // need abs( ?
 }
 
-static void roi_img_print_data(const ocr_image_t *img,
-                               const roi_t *roi) {
+static void roi_img_print_data(const ocr_image_t *img, const roi_t *roi) {
   printf("\n");
   for (uint32_t r = 0; r < roi_heigth(roi); ++r) {
     uint32_t rr = roi->top_left.y + r;
     for (uint32_t c = 0; c < roi_width(roi); ++c) {
       uint32_t cc = roi->top_left.x + c;
-      printf("%d,", img->pixels[rr * img->width + cc] == IMG_COLOR_BACKGROUND ? 0 : 1);
+      printf("%d,",
+             img->pixels[rr * img->width + cc] == IMG_COLOR_BACKGROUND ? 0 : 1);
     }
     printf("\n");
   }
 }
 
-static bmp_data_t img_to_bmp_data(const ocr_image_t *img,
-                                  const roi_t *roi);
-static void img_save_to_bmp(const ocr_image_t *img,
-                            const roi_t *roi,
+static bmp_data_t img_to_bmp_data(const ocr_image_t *img, const roi_t *roi);
+static void img_save_to_bmp(const ocr_image_t *img, const roi_t *roi,
                             const char *dst_path);
-static void img_show(const ocr_image_t *img,
-                     const roi_t *roi);
+static void img_show(const ocr_image_t *img, const roi_t *roi);
 
 // MAIN
 static histogram_t hist_from_img(const ocr_image_t *img);
-static roi_t img_threshold_filter(ocr_image_t *img,
-                                  uint32_t threshold);
+static roi_t img_threshold_filter(ocr_image_t *img, uint32_t threshold);
 static uint32_t img_otsu_get_threshold(const histogram_t *hist);
 static roi_t img_otsu_threshold_filter(ocr_image_t *img,
                                        const histogram_t *hist);
 
 static uint32_t img_label_connected_components(ocr_image_t *img,
                                                const roi_t *roi);
-static void img_label_connected_components_int(ocr_image_t *img,
-                                               uint32_t c_lbl,
-                                               int32_t row,
-                                               int32_t col);
+static void img_label_connected_components_int(ocr_image_t *img, uint32_t c_lbl,
+                                               int32_t row, int32_t col);
 
-static roi_t img_roi_from_label(const ocr_image_t *img,
-                                const roi_t *roi,
+static roi_t img_roi_from_label(const ocr_image_t *img, const roi_t *roi,
                                 uint32_t lbl);
 
-static roi_t img_roi_rotate(ocr_image_t *img,
-                            const roi_t *roi,
+static roi_t img_roi_rotate(ocr_image_t *img, const roi_t *roi,
                             double angle_degrees);
 
-static char ocr_int(const ocr_image_t *img,
-                    const roi_t *roi_sym);
+static char ocr_int(const ocr_image_t *img, const roi_t *roi_sym);
 
 typedef uint32_t ocr_a_mtx_t[OCR_SYM_ROWS_N * OCR_SYM_COLS_N];
-static ocr_image_t img_scale(const ocr_image_t img,
-                             int width,
-                             int height,
+static ocr_image_t img_scale(const ocr_image_t img, int width, int height,
                              bool templ);
 
-
 static ocr_a_mtx_t ocr_a[10] = {
-  {
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 1, 1, 1, 1
-  }, // 0
-  {
-    1, 1, 1, 0, 0,
-    1, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 1,
-    0, 0, 1, 0, 1,
-    1, 1, 1, 1, 1,
-  }, // 1
-  {
-    1, 1, 1, 1, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 1, 1, 1, 1,
-  }, // 2
-  {
-    1, 1, 1, 1, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    1, 1, 1, 1, 1,
-  }, // 3
-  {
-    1, 0, 0, 0, 0,
-    1, 0, 0, 1, 0,
-    1, 0, 0, 1, 0,
-    1, 0, 0, 1, 0,
-    1, 0, 0, 1, 0,
-    1, 1, 1, 1, 1,
-    0, 0, 0, 1, 0,
-    0, 0, 0, 1, 0,
-    0, 0, 0, 1, 0,
-  }, // 4
-  {
-    0, 1, 1, 1, 1,
-    0, 1, 0, 0, 0,
-    0, 1, 0, 0, 0,
-    0, 1, 0, 0, 0,
-    0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    0, 1, 1, 1, 1,
-  }, // 5
-  {
-    1, 1, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 0, 0, 0, 0,
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 1, 1, 1, 1,
-  }, // 6
-  {
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 1, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-    0, 0, 1, 0, 0,
-  }, // 7
-  {
-    0, 1, 1, 1, 0,
-    0, 1, 0, 1, 0,
-    0, 1, 0, 1, 0,
-    0, 1, 0, 1, 0,
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 1, 1, 1, 1,
-  }, // 8
-  {
-    1, 1, 1, 1, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 0, 0, 0, 1,
-    1, 1, 1, 1, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1,
-    0, 0, 0, 1, 1,
-  }, // 9
+    {1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0,
+     0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1}, // 0
+    {
+        1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+        0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1,
+    }, // 1
+    {
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+    }, // 2
+    {
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1,
+        1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    }, // 3
+    {
+        1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0,
+        1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0,
+    }, // 4
+    {
+        0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1,
+        1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1,
+    }, // 5
+    {
+        1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    }, // 6
+    {
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+        0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0,
+    }, // 7
+    {
+        0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    }, // 8
+    {
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1,
+    }, // 9
 };
 //////////////////////////////////////////////////////////////
 
-ocr_image_t img_scale(const ocr_image_t img,
-                      int width,
-                      int height,
+ocr_image_t img_scale(const ocr_image_t img, int width, int height,
                       bool templ) {
   ocr_image_t res = {.width = width, .height = height};
-  res.pixels = calloc(sizeof(*res.pixels), res.width * res.height);
+  res.pixels = calloc(res.width * res.height, sizeof(*res.pixels));
 
   double scale_c = (double)res.width / img.width;
   double scale_r = (double)res.height / img.height;
@@ -238,7 +152,7 @@ ocr_image_t img_scale(const ocr_image_t img,
         pixel = img.pixels[nearest_r * img.width + nearest_c - 1];
 
       if (templ) {
-        pixel = pixel == 0 ? IMG_COLOR_BACKGROUND: IMG_COLOR_FOREGROUND;
+        pixel = pixel == 0 ? IMG_COLOR_BACKGROUND : IMG_COLOR_FOREGROUND;
       }
 
       res.pixels[r * res.width + c] = pixel;
@@ -248,10 +162,8 @@ ocr_image_t img_scale(const ocr_image_t img,
 }
 //////////////////////////////////////////////////////////////
 
-static int ocr_img_cmp(const ocr_image_t *img1,
-                       const roi_t *roi1,
-                       const ocr_image_t *img2,
-                       const roi_t *roi2) {
+static int ocr_img_cmp(const ocr_image_t *img1, const roi_t *roi1,
+                       const ocr_image_t *img2, const roi_t *roi2) {
   int roi1_w = roi_width(roi1);
   int roi2_w = roi_width(roi2);
   int roi1_h = roi_heigth(roi1);
@@ -263,8 +175,10 @@ static int ocr_img_cmp(const ocr_image_t *img1,
 
   int sum = 0;
   for (int r = 0; r < roi1_h; ++r) {
-    uint32_t *pr1 = &img1->pixels[(roi1->top_left.y+r) * img1->width + roi1->top_left.x];
-    uint32_t *pr2 = &img2->pixels[(roi2->top_left.y+r) * img2->width + roi2->top_left.x];
+    uint32_t *pr1 =
+        &img1->pixels[(roi1->top_left.y + r) * img1->width + roi1->top_left.x];
+    uint32_t *pr2 =
+        &img2->pixels[(roi2->top_left.y + r) * img2->width + roi2->top_left.x];
 
     for (int c = 0; c < roi1_w; ++c) {
       uint32_t p1 = pr1[c] == IMG_COLOR_BACKGROUND ? 0 : 1;
@@ -279,20 +193,18 @@ static int ocr_img_cmp(const ocr_image_t *img1,
 }
 //////////////////////////////////////////////////////////////
 
-char ocr_int(const ocr_image_t *img,
-             const roi_t *roi_sym) {
+char ocr_int(const ocr_image_t *img, const roi_t *roi_sym) {
   static const char *str = "0123456789";
-  int32_t max, max_i; 
+  int32_t max, max_i;
   max = max_i = 0;
 
   int32_t lst_max[10] = {0};
   for (int32_t i = 0; i < 10; ++i) {
-    ocr_image_t templ = {.width = OCR_SYM_COLS_N,
-                         .height = OCR_SYM_ROWS_N,
-                         .pixels = ocr_a[i]};
+    ocr_image_t templ = {
+        .width = OCR_SYM_COLS_N, .height = OCR_SYM_ROWS_N, .pixels = ocr_a[i]};
 
-    ocr_image_t scaled_templ = img_scale(templ, roi_width(roi_sym),
-                                         roi_heigth(roi_sym), true);
+    ocr_image_t scaled_templ =
+        img_scale(templ, roi_width(roi_sym), roi_heigth(roi_sym), true);
     roi_t r;
     r.top_left.x = 0;
     r.top_left.y = 0;
@@ -314,25 +226,24 @@ char ocr_int(const ocr_image_t *img,
                        .height = OCR_SYM_ROWS_N,
                        .pixels = ocr_a[max_i]};
 
-  ocr_image_t scaled_templ = img_scale(templ, roi_width(roi_sym),
-                                       roi_heigth(roi_sym), true);
+  ocr_image_t scaled_templ =
+      img_scale(templ, roi_width(roi_sym), roi_heigth(roi_sym), true);
   roi_t r;
   r.top_left.x = 0;
   r.top_left.y = 0;
   r.bottom_right.x = scaled_templ.width - 1;
   r.bottom_right.y = scaled_templ.height - 1;
 
+  //  for (int i = 0; i < 10; ++i) {
+  //    printf("%03d ", lst_max[i]);
+  //  }
+  //  printf("\n");
 
-//  for (int i = 0; i < 10; ++i) {
-//    printf("%03d ", lst_max[i]);
-//  }
-//  printf("\n");
-
-//  printf("\ntempl:\n");
-//  roi_img_print_data(&scaled_templ, &r);
-//  printf("\nval:\n");
-//  roi_img_print_data(img, roi_sym);
-//  printf("*******\n");
+  //  printf("\ntempl:\n");
+  //  roi_img_print_data(&scaled_templ, &r);
+  //  printf("\nval:\n");
+  //  roi_img_print_data(img, roi_sym);
+  //  printf("*******\n");
 
   ocr_img_free(&scaled_templ);
 
@@ -340,12 +251,10 @@ char ocr_int(const ocr_image_t *img,
 }
 //////////////////////////////////////////////////////////////
 
-roi_t img_roi_rotate(ocr_image_t *img,
-                     const roi_t *roi,
-                     double angle_degrees) {
+roi_t img_roi_rotate(ocr_image_t *img, const roi_t *roi, double angle_degrees) {
   roi_t res = {.bottom_right = roi->bottom_right,
-              .top_left = roi->top_left,
-              .fg_n = roi->fg_n};
+               .top_left = roi->top_left,
+               .fg_n = roi->fg_n};
   return res;
 }
 //////////////////////////////////////////////////////////////
@@ -397,12 +306,8 @@ char *ocr(ocr_image_t *img) {
 }
 //////////////////////////////////////////////////////////////
 
-
-
-roi_t
-img_roi_from_label(const ocr_image_t *img,
-                   const roi_t *roi,
-                   uint32_t lbl) {
+roi_t img_roi_from_label(const ocr_image_t *img, const roi_t *roi,
+                         uint32_t lbl) {
   roi_t sroi; // roi of symbol
   // next 2 lines are just for finding min/max values
   sroi.top_left = roi->bottom_right;
@@ -442,19 +347,18 @@ void img_label_connected_components_int(ocr_image_t *img, uint32_t c_lbl,
                                         int32_t row, int32_t col) {
   enum { RIX = 0, CIX = 1, END = 2 };
   static const int neighbors[] = {
-    -1,  -1, // left up
-    -1,  0,  // up
-    -1,  1,  // right up
-    0,   -1, // left
-    0,   1,  // right
-    1,   -1, // left down
-    1,   0,  // down
-    1,   1,  // right down
-    END, END // END
+      -1,  -1, // left up
+      -1,  0,  // up
+      -1,  1,  // right up
+      0,   -1, // left
+      0,   1,  // right
+      1,   -1, // left down
+      1,   0,  // down
+      1,   1,  // right down
+      END, END // END
   };
 
-  if (row >= img->height || row < 0 ||
-      col >= img->width || col < 0)
+  if (row >= img->height || row < 0 || col >= img->width || col < 0)
     return;
   if (img->pixels[row * img->width + col] != IMG_COLOR_FOREGROUND)
     return; // already labeled or background
@@ -463,8 +367,7 @@ void img_label_connected_components_int(ocr_image_t *img, uint32_t c_lbl,
   for (const int *ptr_d = neighbors; *ptr_d != END; ptr_d += 2) {
     int32_t nr = row + ptr_d[RIX];
     int32_t nc = col + ptr_d[CIX];
-    if (nr < 0 || nr >= img->height ||
-        nc < 0 || nc >= img->width)
+    if (nr < 0 || nr >= img->height || nc < 0 || nc >= img->width)
       continue;
     img_label_connected_components_int(img, c_lbl, nr, nc);
   }
@@ -498,7 +401,7 @@ histogram_t hist_from_img(const ocr_image_t *img) {
       res.sum += v;
       res.data[v]++;
     } // for rows
-  }   // for cols
+  } // for cols
   return res;
 }
 //////////////////////////////////////////////////////////////
@@ -557,7 +460,7 @@ roi_t img_otsu_threshold_filter(ocr_image_t *img, const histogram_t *hist) {
 
 uint32_t img_otsu_get_threshold(const histogram_t *hist) {
   double sum_b = 0.0;   // sum background
-  uint32_t wB = 0, wF;      // weight background/foreground
+  uint32_t wB = 0, wF;  // weight background/foreground
   double mB, mF;        // mean background/foreground
   double var_max = 0.0; //
   uint32_t threshold = 0;
@@ -602,8 +505,7 @@ void img_show(const ocr_image_t *img, const roi_t *roi) {
 //////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////
 
-bmp_data_t img_to_bmp_data(const ocr_image_t *img,
-                           const roi_t *roi) {
+bmp_data_t img_to_bmp_data(const ocr_image_t *img, const roi_t *roi) {
   uint8_t *ptr8;
   bmp_data_t res = {0};
   bmp_file_hdr_t f_hdr = {0};
@@ -630,10 +532,10 @@ bmp_data_t img_to_bmp_data(const ocr_image_t *img,
   // create file header
   f_hdr.signature = BMP_SIGNATURE;
   f_hdr.file_size = sizeof(bmp_file_hdr_t) + img_hdr.size_hdr +
-      img_hdr.colors_used * sizeof(RGBQUAD) + img_hdr.size_img;
+                    img_hdr.colors_used * sizeof(RGBQUAD) + img_hdr.size_img;
   f_hdr.reserved = 0;
   f_hdr.data_offset = sizeof(bmp_file_hdr_t) + img_hdr.size_hdr +
-      img_hdr.colors_used * sizeof(RGBQUAD);
+                      img_hdr.colors_used * sizeof(RGBQUAD);
 
   res.size = f_hdr.file_size;
   res.data = malloc(res.size);
@@ -671,8 +573,7 @@ bmp_data_t img_to_bmp_data(const ocr_image_t *img,
 }
 //////////////////////////////////////////////////////////////
 
-void img_save_to_bmp(const ocr_image_t *img,
-                     const roi_t *roi,
+void img_save_to_bmp(const ocr_image_t *img, const roi_t *roi,
                      const char *dst_path) {
   bmp_data_t bmp = img_to_bmp_data(img, roi);
 
@@ -755,9 +656,6 @@ void ocr_img_free(ocr_image_t *img) {
 }
 //////////////////////////////////////////////////////////////
 
-
-
-
 static char *tst_image(const char *file_path) {
   bool fail;
   ocr_image_t img = ocr_img_from_file(file_path, &fail);
@@ -774,24 +672,33 @@ static char *tst_image(const char *file_path) {
 
 static int strdiff(const char *s1, const char *s2) {
   int c = 0;
-  for (; *s1 && *s2 && *s1 == *s2; ++s1, ++s2, ++c);
+  for (; *s1 && *s2 && *s1 == *s2; ++s1, ++s2, ++c)
+    ;
   return *s1 == *s2 ? -1 : c;
 }
 //////////////////////////////////////////////////////////////
 
-
 static void ocr_main() {
   const char *paths[] = {
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/141.tst", "141",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/8.tst", "8",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/27676763494101690703.tst", "27676763494101690703",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/45.tst", "45",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/49094789.tst", "49094789",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/63694963892369696143.tst", "63694963892369696143",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/036949276921.tst", "036949276921",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/856505614165690145.tst", "856505614165690145",
-    "/home/lezh1k/SRC/test_data/Codewars_OCR/052727094565054505.tst", "052727094565054505",
-    NULL,
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/141.tst",
+      "141",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/8.tst",
+      "8",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/27676763494101690703.tst",
+      "27676763494101690703",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/45.tst",
+      "45",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/49094789.tst",
+      "49094789",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/63694963892369696143.tst",
+      "63694963892369696143",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/036949276921.tst",
+      "036949276921",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/856505614165690145.tst",
+      "856505614165690145",
+      "/home/lezh1k/SRC/test_data/Codewars_OCR/052727094565054505.tst",
+      "052727094565054505",
+      NULL,
   };
 
   for (const char **fp = paths; *fp; fp += 2) {

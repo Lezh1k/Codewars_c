@@ -223,7 +223,7 @@ infix_to_postfix(const token_t *infix) {
       while (!st_empty() &&
              st_peek()->type != TT_PAR_L)
         *out++ = st_pop();
-      st_pop(); //remove left parenthesis
+      (void)st_pop(); //remove left parenthesis
       continue;
     }
 

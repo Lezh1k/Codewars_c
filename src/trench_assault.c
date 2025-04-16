@@ -97,6 +97,26 @@ int weight_slow(char s) {
 }
 //////////////////////////////////////////////////////////////
 
+extern int find_char_index(const char *str, char target);
+
+static int weight_slow_2(char s) {
+  int idx = find_char_index(relief_letters, s);
+  if (idx != -1) {
+    return 0;
+  }
+
+  idx = find_char_index(left_side_letters, s);
+  if (idx != -1) {
+    return -idx;
+  }
+
+  idx = find_char_index(right_side_letters, s);
+  if (idx != -1) {
+    return idx;
+  }
+  __builtin_unreachable();
+}
+
 static void profile_weight_functions(void) {
   clock_t start, end;
   double cpu_time_used;
@@ -147,6 +167,20 @@ static void profile_weight_functions(void) {
   cpu_time_used =
       ((double)(end - start)) / CLOCKS_PER_SEC; // Calculate time in seconds
   printf("asm()\ttook %.10f seconds to execute\n", cpu_time_used);
+
+  printf("slow 2:\n");
+  start = clock();
+  for (int i = 0; i < iterations; ++i) {
+    for (const char *ps = tst; *ps; ++ps) {
+      int w = weight_slow_2(*ps);
+      /* printf("%d ", w); */
+    }
+    /* printf("\n"); */
+  }
+  end = clock();
+  cpu_time_used =
+      ((double)(end - start)) / CLOCKS_PER_SEC; // Calculate time in seconds
+  printf("slow2()\ttook %.10f seconds to execute\n", cpu_time_used);
 }
 //////////////////////////////////////////////////////////////
 

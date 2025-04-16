@@ -23,3 +23,25 @@ zbyte_32_asm:
 not_found:
   mov eax, -1
   ret
+
+
+.global find_char_index
+
+find_char_index:
+  #   RDI -> pointer to the string (str)
+  #   SIL -> target character (target)
+  mov rdx, rdi
+
+  mov ecx, 4
+  mov al, sil
+
+  cld
+  repne scasb
+  je found
+  mov eax, -1
+  ret
+
+found:
+  mov rax, rdi
+  sub rax, rdx
+  ret
