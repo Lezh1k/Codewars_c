@@ -1,4 +1,4 @@
-PRG = triang
+PRG = codewars
 
 SRC_DIR = src
 BUILD_DIR = build
