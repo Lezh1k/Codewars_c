@@ -54,9 +54,11 @@ add_executable(${PROJECT_NAME} ${sources} ${data})
 target_include_directories(${PROJECT_NAME} PRIVATE inc)
 
 set(warning_level -Wall -Wextra -pedantic)
-target_compile_options(${PROJECT_NAME} PUBLIC ${warning_level})
+set(sse_flags -msse -msse2)
+target_compile_options(${PROJECT_NAME} PUBLIC ${warning_level} ${sse_flags})
 target_link_libraries(${PROJECT_NAME} m) 
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 # This copies all resource files in the build directory.
 # We need this, because we want to work with paths relative to the executable.
 file(COPY ${data} DESTINATION resources)
