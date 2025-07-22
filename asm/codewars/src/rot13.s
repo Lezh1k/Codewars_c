@@ -6,12 +6,11 @@ section .data
     msk_0d: dq 0x0d0d0d0d0d0d0d0d, 0x0d0d0d0d0d0d0d0d
     msk_1a: dq 0x1a1a1a1a1a1a1a1a, 0x1a1a1a1a1a1a1a1a
     msk_20: dq 0x2020202020202020, 0x2020202020202020
-    msk_61: dq 0x6161616161616161, 0x6161616161616161
-    msk_80: dq 0x8080808080808080, 0x8080808080808080
-    ; these 2 are xorex with 0x80 0x19 and 0x7a. 
-    ; I use them for unsigned comparison via pcmpgtb
-    msk_99: dq 0x9999999999999999, 0x9999999999999999
-    msk_fa: dq 0xfafafafafafafafa, 0xfafafafafafafafa
+
+    msk_a: dq 0x6161616161616161, 0x6161616161616161
+    msk_m: dq 0x6d6d6d6d6d6d6d6d, 0x6d6d6d6d6d6d6d6d  ; 'z' - 13
+    msk_z: dq 0x7a7a7a7a7a7a7a7a, 0x7a7a7a7a7a7a7a7a
+
 
 section .text
 
@@ -54,32 +53,21 @@ rot_13_sse:
   ptest xmm0, xmm0
   jz .r13v_str_end
 
-  movaps xmm1, xmm0       ; in xmm1 we are going to store offsets
-  orps xmm1, [msk_20]     ; convert to lower case
-  movaps xmm3, xmm1       ; store lower case values in xmm3
-  
-  ; check if value in range ['a'..'z']
-  psubb xmm1, [msk_61]
-  pxor xmm1, [msk_80]     ; for unsigned comparison we use xored with 0x80 values
-  pcmpgtb xmm1, [msk_99]
-  pcmpeqb xmm2, xmm2      ; get 0xffffffffffffffff in xmm2
-  pxor xmm1, xmm2         ; invert result 
+  movaps xmm3, xmm0       ; in xmm1 we are going to store offsets
+  orps xmm3, [msk_20]     ; convert to lower case
 
-  ; now we have something like [0xff, 0x00, 0x00, 0xff..]
-  ; 0xff - where we have 'a'-'z' char and 0x00 otherwise
-  pand xmm1, [msk_0d]     ; add 13 to all bytes. but need additional check
-  movaps xmm4, xmm1       ; store tmp offsets in xmm4
+  ; check if value is in range ['a'..'z']
+  movaps xmm2, [msk_a]      ; load 'a' mask into xmm2
+  pcmpgtb xmm2, xmm3        ; now in xmm2 0xff on positions less than 'a'
+  pcmpeqb xmm1, xmm1        ; but we need 0xff on positions greater than 'a'
+  pxor xmm2, xmm1           ; so we invert them
 
-  paddb xmm1, xmm3        ; add offsets to lower string
+  movaps xmm1, [msk_z]      ; load 'z' mask into xmm1
+  pcmpgtb xmm1, xmm3        ; now in xmm1 0xff on positions less then 'z'
+  pand xmm1, xmm2
+  ; now we have something like [0xff, 0x00, 0x00, 0xff..] in xmm1
+  ; 0xff - where we have ['a'..'z'] char and 0x00 otherwise
 
-  ; check and sub by 26 if values are greater than 'z'
-  movaps xmm2, xmm1
-  pxor xmm2, [msk_80]
-  pcmpgtb xmm2, [msk_fa]
-  pand xmm2, [msk_1a]     ; now xmm2 contains offsets which needs to be added to previously stored offsets
-
-  psubb xmm4, xmm2
-  paddb xmm0, xmm4        ; add these offsets to the original string
 
   movaps [rax], xmm0
   jmp .r13v_str_loop
