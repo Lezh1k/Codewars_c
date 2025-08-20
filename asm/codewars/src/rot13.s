@@ -8,9 +8,8 @@ section .data
     msk_20: dq 0x2020202020202020, 0x2020202020202020
 
     msk_a: dq 0x6161616161616161, 0x6161616161616161
-    msk_m: dq 0x6d6d6d6d6d6d6d6d, 0x6d6d6d6d6d6d6d6d  ; 'z' - 13
-    msk_z: dq 0x7a7a7a7a7a7a7a7a, 0x7a7a7a7a7a7a7a7a
-
+    msk_m: dq 0x6e6e6e6e6e6e6e6e, 0x6e6e6e6e6e6e6e6e ; m+1
+    msk_z: dq 0x7b7b7b7b7b7b7b7b, 0x7b7b7b7b7b7b7b7b ; z+1
 
 section .text
 
@@ -27,10 +26,10 @@ section .text
 
 
 rot_13_sse:
-  push rdi      ; save original string pointer
+  push rdi                  ; save original string pointer
   call strlen
 
-  add rax, 32   ; we need 16 for alignment and 16 for zero end
+  add rax, 32               ; we need 16 for alignment and 16 for zero end
   mov rdi, rax
   mov rsi, 1
   ; aligned calloc
@@ -39,35 +38,49 @@ rot_13_sse:
   and rax, ~15
 
   ; strcpy
-  pop rsi       ; src -> original string pointer
-  mov rdi, rax  ; dst -> allocated memory
+  pop rsi                   ; src -> original string pointer
+  mov rdi, rax              ; dst -> allocated memory
   call strcpy
 
   ; rot13_sse
   mov rdi, rax
-  sub rax, 16   ; just decrement before loop starts
+  sub rax, 16               ; just decrement before loop starts
 
 .r13v_str_loop:
   add rax, 16
-  movaps xmm0, [rax]
+  movaps xmm0, [rax]        ; original string in xmm0
   ptest xmm0, xmm0
   jz .r13v_str_end
 
-  movaps xmm3, xmm0       ; in xmm1 we are going to store offsets
-  orps xmm3, [msk_20]     ; convert to lower case
+  movaps xmm3, xmm0         ; in xmm1 we are going to store offsets
+  orps xmm3, [msk_20]       ; convert to lower case
 
   ; check if value is in range ['a'..'z']
   movaps xmm2, [msk_a]      ; load 'a' mask into xmm2
   pcmpgtb xmm2, xmm3        ; now in xmm2 0xff on positions less than 'a'
   pcmpeqb xmm1, xmm1        ; but we need 0xff on positions greater than 'a'
-  pxor xmm2, xmm1           ; so we invert them
+  pxor xmm2, xmm1           ; so we invert them. in xmm2 we have 0xff on positions greater than 'a'
 
   movaps xmm1, [msk_z]      ; load 'z' mask into xmm1
   pcmpgtb xmm1, xmm3        ; now in xmm1 0xff on positions less then 'z'
-  pand xmm1, xmm2
-  ; now we have something like [0xff, 0x00, 0x00, 0xff..] in xmm1
-  ; 0xff - where we have ['a'..'z'] char and 0x00 otherwise
+  pand xmm1, xmm2           ;
+                            ; now we have something like [0xff, 0x00, 0x00, 0xff..] in xmm1
+                            ; 0xff - where we have ['a'..'z'] char and 0x00 otherwise
 
+  pand xmm3, xmm1
+  movaps xmm2, [msk_m]
+  pcmpgtb xmm2, xmm3
+  pcmpeqb xmm4, xmm4
+  pxor xmm2, xmm4
+
+  ; xmm1 - all letters mask
+  ; xmm2 - all letters > 'm' mask
+
+  pand xmm1, [msk_0d]
+  pand xmm2, [msk_1a]
+  ; int3
+  paddb xmm0, xmm1
+  psubb xmm0, xmm2
 
   movaps [rax], xmm0
   jmp .r13v_str_loop
