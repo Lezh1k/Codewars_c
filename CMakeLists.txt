@@ -9,7 +9,7 @@ enable_language(C ASM)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set(CMAKE_C_COMPILER clang)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -18,7 +18,7 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
   message("Release build.")
 else()
   message("Some other build type. Setting up default = Release")
-  set(CMAKE_BUILD_TYPE Debug)
+  set(CMAKE_BUILD_TYPE Release)
 endif()
 
 set(CMAKE_C_FLAGS_RELEASE "-O2")
