@@ -18,7 +18,7 @@ elseif(CMAKE_BUILD_TYPE MATCHES Release)
   message("Release build.")
 else()
   message("Some other build type. Setting up default = Release")
-  set(CMAKE_BUILD_TYPE Release)
+  set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 set(CMAKE_C_FLAGS_RELEASE "-O2")
@@ -34,17 +34,6 @@ file(GLOB_RECURSE sources      src/*.c src/*.s inc/*.h)
 file(GLOB_RECURSE sources_test tests/*.c)
 file(GLOB_RECURSE data resources/*)
 
-find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
-if (CMAKE_CXX_CPPCHECK)
-    list(
-        APPEND CMAKE_CXX_CPPCHECK 
-            "--enable=warning"
-            "--inconclusive"
-            "--force" 
-            "--inline-suppr"
-            "--suppressions-list=${CMAKE_SOURCE_DIR}/CppCheckSuppressions.txt"
-    )
-endif()
 
 ###############################################################################
 ## target definitions #########################################################
@@ -58,7 +47,6 @@ set(sse_flags -msse -msse2)
 target_compile_options(${PROJECT_NAME} PUBLIC ${warning_level} ${sse_flags})
 target_link_libraries(${PROJECT_NAME} m) 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 # This copies all resource files in the build directory.
 # We need this, because we want to work with paths relative to the executable.
 file(COPY ${data} DESTINATION resources)

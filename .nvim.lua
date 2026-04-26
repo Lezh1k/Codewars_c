@@ -7,6 +7,7 @@ end
 
 local function save_and_debug()
   vim.cmd([[wa]])
+  vim.cmd([[terminal cmake -S . -B ./build && cmake --build build]])
   vim.cmd([[terminal cmake -S . -B ./build && cmake --build build && gdb -q ./build/codewars_c]])
 end
 
@@ -16,6 +17,7 @@ local function save_and_run_unit_tests()
   vim.cmd([[resize -4]])
   vim.cmd([[terminal cmake -S . -B ./build && cmake --build build && ./build/unit_tests]])
 end
+
 
 local opts = { noremap = true, silent = true }
 vim.keymap.set("n", "<C-R>", save_and_run, opts)
