@@ -214,7 +214,7 @@ uint32_t logOfPower2(uint32_t v) {
 }
 //////////////////////////////////////////////////////////////////////////
 
-void __attribute_used__ vecPrint(const iVec_t *vec) {
+void __attribute__((used)) vecPrint(const iVec_t *vec) {
   int i;
   for (i = 0; i < vec->len; ++i)
     printf("(%.2f %.2f) ", vec->data[i].r, vec->data[i].i);
