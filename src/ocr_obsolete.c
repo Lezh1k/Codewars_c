@@ -36,7 +36,7 @@ typedef struct morphological_kernel {
 
 static double hist_sigma(const histogram_t *hist);
 static void img_blur(ocr_image_t *img,
-                     const histogram_t *hist) __attribute_used__;
+                     const histogram_t *hist) __attribute__((used));
 
 
 void img_apply_convolution(ocr_image_t *img,
