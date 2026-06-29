@@ -10,18 +10,18 @@ end
 
 local function save_and_debug()
   vim.cmd([[wa]])
-  vim.cmd("terminal cmake -S . -B ./build && cmake --build build && gdb -q " .. target)
+  vim.cmd("terminal cmake -S . -B ./build && cmake --build build && gdb -q -nx " .. target)
 end
 
 local function save_and_run_unit_tests()
   vim.cmd([[wa]])
   vim.cmd([[belowright split]])
   vim.cmd([[resize -4]])
-  vim.cmd("terminal cmake -S . -B ./build && cmake --build build " .. target)
+  vim.cmd("terminal cmake -S . -B ./build && cmake --build build " .. tests)
 end
 
 
 local opts = { noremap = true, silent = true }
-vim.keymap.set("n", "<C-R>", save_and_run, opts)
+vim.keymap.set("n", "<C-E>", save_and_run, opts)
 vim.keymap.set("n", "<C-T>", save_and_run_unit_tests, opts)
 vim.keymap.set("n", "<F5>", save_and_debug, opts)
