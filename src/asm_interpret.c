@@ -10,6 +10,15 @@
 #include <string.h>
 #include <unistd.h>
 
+// (a)+0 to convert types to int and remove const/volatile modifiers
+#define MIN(a, b)                                                              \
+  _Generic((a) + 0,                                                            \
+      int: ((a) < (b) ? (a) : (b)),                                            \
+      long: ((a) < (b) ? (a) : (b)),                                           \
+      double: ((a) < (b) ? (a) : (b)),                                         \
+      size_t: ((a) < (b) ? (a) : (b)),                                         \
+      float: ((a) < (b) ? (a) : (b)))
+
 typedef struct str_view {
   const char *data;
   size_t len;
@@ -96,12 +105,12 @@ void tkz_skip_whitespaces_and_comments(tokenizer_t *t) {
         ++t->cursor;
         continue;
       }
-      ++t->cursor; // consume '\n' or '\0' (we don't want it at the beginning of
-                   // token)
+      // we don't want to consume '\n' or '\0'
     }
     break;
   }
 }
+//////////////////////////////////////////////////////////////
 
 token_t tkz_next_token(tokenizer_t *t) {
   tkz_skip_whitespaces_and_comments(t);
@@ -112,7 +121,7 @@ token_t tkz_next_token(tokenizer_t *t) {
 
   do {
     if (c == '\0') {
-      ++t->cursor; // consume end of string
+      // ++t->cursor;  don't want to consume '\0'
       tt = TT_EOF;
       break;
     }
@@ -193,30 +202,121 @@ token_t tkz_next_token(tokenizer_t *t) {
 }
 //////////////////////////////////////////////////////////////
 
-typedef struct cmd {
-  str_view_t sv;
-  size_t addr;
-} cmd_t;
+typedef struct sa_context {
+  tokenizer_t tkz;
+  size_t stack[256];
+  int32_t registers[128];
+} sa_context_t;
 
-typedef struct interpreter_context {
-  // probably that's enough
-  size_t EIP; // instruction pointer
-  size_t ESP; // stack pointer
+static int sa_mov(sa_context_t *ctx) {
+  token_t ta_dst = tkz_next_token(&ctx->tkz);
+  if (ta_dst.tt != TT_IDENTIFIER) {
+    return -1;
+  }
+  token_t tc = tkz_next_token(&ctx->tkz);
+  if (tc.tt != TT_COMMA) {
+    return -2;
+  }
+  token_t ta_src = tkz_next_token(&ctx->tkz);
+  if (ta_src.tt != TT_IDENTIFIER && ta_src.tt != TT_INT) {
+    return -3;
+  }
 
-  cmd_t stack[256];
-} interpreter_context_t;
+  ctx->registers[(int)ta_dst.sv.data[0]] =
+      ta_src.tt == TT_INT ? atoi(ta_src.sv.data)
+                          : ctx->registers[(int)ta_src.sv.data[0]];
+
+  printf("mov %.*s %.*s %.*s", ta_dst.sv.len, ta_dst.sv.data, tc.sv.len,
+         tc.sv.data, ta_src.sv.len, ta_src.sv.data);
+  return 0;
+}
+//////////////////////////////////////////////////////////////
+
+static int sa_inc(sa_context_t *ctx) {
+  token_t ta = tkz_next_token(&ctx->tkz);
+  if (ta.tt != TT_IDENTIFIER) {
+    return -1;
+  }
+  printf("inc %.*s", ta.sv.len, ta.sv.data);
+  ++ctx->registers[(int)ta.sv.data[0]];
+  return 0;
+}
+//////////////////////////////////////////////////////////////
+
+static int sa_dec(sa_context_t *ctx) {
+  token_t ta = tkz_next_token(&ctx->tkz);
+  if (ta.tt != TT_IDENTIFIER) {
+    return -1;
+  }
+  printf("dec %.*s", ta.sv.len, ta.sv.data);
+  --ctx->registers[(int)ta.sv.data[0]];
+  return 0;
+}
+//////////////////////////////////////////////////////////////
+
+static int sa_add(sa_context_t *ctx) {
+  token_t ta_dst = tkz_next_token(&ctx->tkz);
+  if (ta_dst.tt != TT_IDENTIFIER) {
+    return -1;
+  }
+  token_t tc = tkz_next_token(&ctx->tkz);
+  if (tc.tt != TT_COMMA) {
+    return -2;
+  }
+  token_t ta_src = tkz_next_token(&ctx->tkz);
+  if (ta_src.tt != TT_IDENTIFIER && ta_src.tt != TT_INT) {
+    return -3;
+  }
+  ctx->registers[(int)ta_dst.sv.data[0]] +=
+      ta_src.tt == TT_INT ? atoi(ta_src.sv.data)
+                          : ctx->registers[(int)ta_src.sv.data[0]];
+
+  printf("add %.*s %.*s %.*s", ta_dst.sv.len, ta_dst.sv.data, tc.sv.len,
+         tc.sv.data, ta_src.sv.len, ta_src.sv.data);
+  return 0;
+}
+//////////////////////////////////////////////////////////////
+
+typedef struct sa_cmd_handler {
+  const char *cmd;
+  int (*handler)(sa_context_t *);
+} sa_cmd_handler_t;
+
+static const sa_cmd_handler_t sa_cmd_handlers[] = {
+    {.cmd = "mov", .handler = sa_mov}, {.cmd = "inc", .handler = sa_inc},
+    {.cmd = "dec", .handler = sa_dec}, {.cmd = "add", .handler = sa_add},
+    {.cmd = NULL, .handler = NULL},
+};
+
+static int sa_cmd_process(sa_context_t *ctx, token_t ct) {
+  for (size_t i = 0; sa_cmd_handlers[i].cmd != NULL; ++i) {
+    size_t n = MIN(strlen(sa_cmd_handlers[i].cmd), ct.sv.len);
+    if (strncmp(sa_cmd_handlers[i].cmd, ct.sv.data, n)) {
+      continue;
+    }
+
+    return sa_cmd_handlers[i].handler(ctx);
+  }
+
+  printf("UNKNOWN: (%.*s [%s:%d]) ", ct.sv.len, ct.sv.data,
+         token_type_str(ct.tt), ct.sv.len);
+  return 0;
+}
 
 void simple_assembler(const char *program) {
-  tokenizer_t tkz = tokenizer(program);
-  token_t ct = tkz_next_token(&tkz);
-  for (; ct.tt != TT_EOF; ct = tkz_next_token(&tkz)) {
+  sa_context_t ctx = {0};
+  ctx.tkz = tokenizer(program);
+  token_t ct = tkz_next_token(&ctx.tkz);
+
+  for (; ct.tt != TT_EOF; ct = tkz_next_token(&ctx.tkz)) {
     if (ct.tt == TT_NEWLINE) {
       printf("\n");
       continue;
     }
-
-    printf("(%.*s [%s:%d]) ", ct.sv.len, ct.sv.data, token_type_str(ct.tt),
-           ct.sv.len);
+    sa_cmd_process(&ctx, ct);
+    if (ct.tt == TT_LABEL) {
+      continue;
+    }
   }
   printf("\n");
 }
@@ -226,17 +326,52 @@ int asm_interpret_main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
 
-  int registers[128] = {0};
   // clang-format off
   const char *program = 
-    "; My first program\n"
-    "mov  a, 5\n"
-    "inc  a\n"
-    "call function\n"
-    "msg  '(5+1)/2 = ', a    ; output message\n"
+    "mov   a, 81         ; value1\n"
+    "mov   b, 153        ; value2\n"
+    "call  init\n"
+    "call  proc_gcd\n"
+    "call  print\n"
     "end\n"
-    "function:\n"
-    "    div  a, 2\n"
+    "\n"
+    "proc_gcd:\n"
+    "    cmp   c, d\n"
+    "    jne   loop\n"
+    "    ret\n"
+    "\n"
+    "loop:\n"
+    "    cmp   c, d\n"
+    "    jg    a_bigger\n"
+    "    jmp   b_bigger\n"
+    "\n"
+    "a_bigger:\n"
+    "    sub   c, d\n"
+    "    jmp   proc_gcd\n"
+    "\n"
+    "b_bigger:\n"
+    "    sub   d, c\n"
+    "    jmp   proc_gcd\n"
+    "\n"
+    "init:\n"
+    "    cmp   a, 0\n"
+    "    jl    a_abs\n"
+    "    cmp   b, 0\n"
+    "    jl    b_abs\n"
+    "    mov   c, a            ; temp1\n"
+    "    mov   d, b            ; temp2\n"
+    "    ret\n"
+    "\n"
+    "a_abs:\n"
+    "    mul   a, -1\n"
+    "    jmp   init\n"
+    "\n"
+    "b_abs:\n"
+    "    mul   b, -1\n"
+    "    jmp   init\n"
+    "\n"
+    "print:\n"
+    "    msg   'gcd(', a, ', ', b, ') = ', c\n"
     "    ret\n";
   // clang-format on
   simple_assembler(program);

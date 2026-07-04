@@ -1,10 +1,10 @@
+#include "asm_interpret.h"
 #include <assert.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "asm_interpret.h"
 
 int main(int argc, char *argv[]) {
   (void)argc;

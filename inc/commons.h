@@ -31,4 +31,8 @@ void bit_comb(uint32_t pool, uint32_t need, uint32_t chosen, uint32_t at,
               void (*cb)(uint32_t));
 //////////////////////////////////////////////////////////////////////////
 
+#define container_of(ptr, type, member)                                        \
+  ((type *)((const char *)(__typeof__(((const type *)0)->member) *){ptr} -     \
+            offsetof(type, member)))
+
 #endif // COMMONS_H
