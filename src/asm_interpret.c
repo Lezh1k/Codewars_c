@@ -254,7 +254,9 @@ static int sa_dec(sa_context_t *ctx) {
 }
 //////////////////////////////////////////////////////////////
 
-static int sa_add(sa_context_t *ctx) {
+typedef enum { ADD = 0, SUB, MUL, DIV } bin_arithm_op;
+
+static int sa_bin_arithm_op(sa_context_t *ctx, bin_arithm_op op) {
   token_t ta_dst = tkz_next_token(&ctx->tkz);
   if (ta_dst.tt != TT_IDENTIFIER) {
     return -1;
@@ -267,15 +269,48 @@ static int sa_add(sa_context_t *ctx) {
   if (ta_src.tt != TT_IDENTIFIER && ta_src.tt != TT_INT) {
     return -3;
   }
-  ctx->registers[(int)ta_dst.sv.data[0]] +=
-      ta_src.tt == TT_INT ? atoi(ta_src.sv.data)
-                          : ctx->registers[(int)ta_src.sv.data[0]];
-
-  printf("add %.*s %.*s %.*s", ta_dst.sv.len, ta_dst.sv.data, tc.sv.len,
-         tc.sv.data, ta_src.sv.len, ta_src.sv.data);
+  int32_t *dst = &ctx->registers[(int)ta_dst.sv.data[0]];
+  int32_t src = ta_src.tt == TT_INT ? atoi(ta_src.sv.data)
+                                    : ctx->registers[(int)ta_src.sv.data[0]];
+  switch (op) {
+  case ADD:
+    *dst += src;
+    break;
+  case SUB:
+    *dst -= src;
+    break;
+  case MUL:
+    *dst *= src;
+    break;
+  case DIV:
+    *dst /= src;
+    break;
+  }
   return 0;
 }
+
+static int sa_add(sa_context_t *ctx) {
+  printf("add");
+  return sa_bin_arithm_op(ctx, ADD);
+}
 //////////////////////////////////////////////////////////////
+
+static int sa_sub(sa_context_t *ctx) {
+  printf("sub");
+  return sa_bin_arithm_op(ctx, SUB);
+}
+//////////////////////////////////////////////////////////////
+
+static int sa_mul(sa_context_t *ctx) {
+  printf("mul");
+  return sa_bin_arithm_op(ctx, MUL);
+}
+//////////////////////////////////////////////////////////////
+
+static int sa_div(sa_context_t *ctx) {
+  printf("div");
+  return sa_bin_arithm_op(ctx, DIV);
+}
 
 typedef struct sa_cmd_handler {
   const char *cmd;
@@ -285,7 +320,8 @@ typedef struct sa_cmd_handler {
 static const sa_cmd_handler_t sa_cmd_handlers[] = {
     {.cmd = "mov", .handler = sa_mov}, {.cmd = "inc", .handler = sa_inc},
     {.cmd = "dec", .handler = sa_dec}, {.cmd = "add", .handler = sa_add},
-    {.cmd = NULL, .handler = NULL},
+    {.cmd = "sub", .handler = sa_sub}, {.cmd = "mul", .handler = sa_mul},
+    {.cmd = "div", .handler = sa_div}, {.cmd = NULL, .handler = NULL},
 };
 
 static int sa_cmd_process(sa_context_t *ctx, token_t ct) {
