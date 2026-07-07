@@ -269,6 +269,10 @@ static int sa_bin_arithm_op(sa_context_t *ctx, bin_arithm_op op) {
   if (ta_src.tt != TT_IDENTIFIER && ta_src.tt != TT_INT) {
     return -3;
   }
+
+  printf(" %.*s %.*s %.*s", ta_dst.sv.len, ta_dst.sv.data, tc.sv.len,
+         tc.sv.data, ta_src.sv.len, ta_src.sv.data);
+
   int32_t *dst = &ctx->registers[(int)ta_dst.sv.data[0]];
   int32_t src = ta_src.tt == TT_INT ? atoi(ta_src.sv.data)
                                     : ctx->registers[(int)ta_src.sv.data[0]];
@@ -311,6 +315,7 @@ static int sa_div(sa_context_t *ctx) {
   printf("div");
   return sa_bin_arithm_op(ctx, DIV);
 }
+//////////////////////////////////////////////////////////////
 
 typedef struct sa_cmd_handler {
   const char *cmd;
@@ -349,10 +354,11 @@ void simple_assembler(const char *program) {
       printf("\n");
       continue;
     }
-    sa_cmd_process(&ctx, ct);
     if (ct.tt == TT_LABEL) {
+      printf("label %.*s\n", ct.sv.len, ct.sv.data);
       continue;
     }
+    sa_cmd_process(&ctx, ct);
   }
   printf("\n");
 }
