@@ -202,11 +202,40 @@ token_t tkz_next_token(tokenizer_t *t) {
 }
 //////////////////////////////////////////////////////////////
 
+#define MAX_LBL_N 64
+#define MAX_STACK_DEPTH 256
+
 typedef struct sa_context {
   tokenizer_t tkz;
-  size_t stack[256];
+  uint64_t FLAGS;
+
+  size_t RLP; // labels pointer
+  token_t labels[MAX_LBL_N];
+
+  size_t RSP;
+  size_t stack[MAX_STACK_DEPTH];
+
   int32_t registers[128];
 } sa_context_t;
+
+static size_t sa_find_lbl(const sa_context_t *ctx, const token_t *lbl) {
+  for (size_t i = 0; i < MAX_LBL_N; ++i) {
+    if (sv_cmp(&ctx->labels[i].sv, &lbl->sv)) {
+      continue;
+    }
+    return i;
+  }
+  return MAX_LBL_N;
+}
+
+static int sa_push_lbl(sa_context_t *ctx, const token_t *lbl) {
+  if (ctx->RLP >= MAX_LBL_N) {
+    return 1;
+  }
+  ctx->labels[ctx->RLP++] = *lbl;
+  return 0;
+}
+//////////////////////////////////////////////////////////////
 
 static int sa_mov(sa_context_t *ctx) {
   token_t ta_dst = tkz_next_token(&ctx->tkz);
@@ -317,6 +346,15 @@ static int sa_div(sa_context_t *ctx) {
 }
 //////////////////////////////////////////////////////////////
 
+static int sa_jmp(sa_context_t *ctx) {
+  token_t tlbl = tkz_next_token(&ctx->tkz);
+  if (tlbl.tt != TT_LABEL) {
+    return 1;
+  }
+  return 0;
+}
+//////////////////////////////////////////////////////////////
+
 typedef struct sa_cmd_handler {
   const char *cmd;
   int (*handler)(sa_context_t *);
@@ -326,7 +364,8 @@ static const sa_cmd_handler_t sa_cmd_handlers[] = {
     {.cmd = "mov", .handler = sa_mov}, {.cmd = "inc", .handler = sa_inc},
     {.cmd = "dec", .handler = sa_dec}, {.cmd = "add", .handler = sa_add},
     {.cmd = "sub", .handler = sa_sub}, {.cmd = "mul", .handler = sa_mul},
-    {.cmd = "div", .handler = sa_div}, {.cmd = NULL, .handler = NULL},
+    {.cmd = "div", .handler = sa_div}, {.cmd = "jmp", .handler = sa_jmp},
+    {.cmd = NULL, .handler = NULL},
 };
 
 static int sa_cmd_process(sa_context_t *ctx, token_t ct) {
@@ -343,6 +382,7 @@ static int sa_cmd_process(sa_context_t *ctx, token_t ct) {
          token_type_str(ct.tt), ct.sv.len);
   return 0;
 }
+//////////////////////////////////////////////////////////////
 
 void simple_assembler(const char *program) {
   sa_context_t ctx = {0};
@@ -354,7 +394,11 @@ void simple_assembler(const char *program) {
       printf("\n");
       continue;
     }
+
     if (ct.tt == TT_LABEL) {
+      if (sa_find_lbl(&ctx, &ct) >= MAX_LBL_N) {
+        sa_push_lbl(&ctx, &ct);
+      }
       printf("label %.*s\n", ct.sv.len, ct.sv.data);
       continue;
     }
